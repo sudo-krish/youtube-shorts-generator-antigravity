@@ -1,0 +1,22 @@
+{
+  "phases": [
+    {
+      "phase_name": "Proposition",
+      "start_time": "00:00",
+      "end_time": "00:05",
+      "action_description": "Mock Setup"
+    },
+    {
+      "phase_name": "Struggle",
+      "start_time": "00:05",
+      "end_time": "00:45",
+      "action_description": "Mock Chaos"
+    },
+    {
+      "phase_name": "Result",
+      "start_time": "00:45",
+      "end_time": "01:00",
+      "action_description": "Mock Epic Win"
+    }
+  ]
+}

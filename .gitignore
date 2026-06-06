@@ -1,0 +1,11 @@
+.agent/
+backend/venv
+backend/downloads
+backend/outputs
+backend/__pycache__
+backend/google/__pycache__/
+backend/.env
+.venv
+.agents/
+
+backend/effects/__pycache__/
