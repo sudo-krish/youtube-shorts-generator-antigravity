@@ -1,3 +1,11 @@
+---
+domain: Architecture
+folder_path: docs/Architecture
+description: YouTube Shorts algorithm timing zones, rules, and logic for AI video slicing.
+veracity_score: 5
+tags: [algorithm, architecture, rules]
+---
+
 # YouTube Shorts Algorithm Guide (2026)
 
 While YouTube recently bumped the maximum length for Shorts all the way up to 3 minutes, the "perfect" timing isn't about using all that space. The algorithmic sweet spot for the vast majority of high-performing Shorts right now sits right between 20 and 45 seconds. However, the absolute best length depends entirely on the type of content you are making, because the algorithm judges different lengths by different retention standards. 

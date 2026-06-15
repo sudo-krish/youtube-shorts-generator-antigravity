@@ -1,3 +1,11 @@
+---
+domain: Backend
+folder_path: docs/Backend
+description: Backend services, APIs, and audio/video processing details.
+veracity_score: 4
+tags: [backend, api, python]
+---
+
 # Antigravity Studio - Autonomous Factory Engine
 
 The powerhouse behind the Antigravity Shorts Engine. This FastAPI-driven backend has evolved into a fully **Autonomous Video Factory**. It programmatically slices, analyzes, and randomly assembles thousands of unique viral gaming shorts using a custom AI pipeline and the real `google-antigravity` SDK.
