@@ -2,6 +2,7 @@ import os
 import cv2
 import json
 import logging
+import numpy as np
 from ultralytics import YOLO
 
 logger = logging.getLogger(__name__)
@@ -19,16 +20,41 @@ def get_yolo_model():
             return None
     return _model
 
-def smooth_coordinates(coords, alpha=0.3):
-    """Applies Exponential Moving Average (EMA) to smooth out bounding box jitter."""
+def smooth_coordinates(coords):
+    """Applies a Kalman Filter to predict and smooth out bounding box jitter for a cinematic pan."""
     if not coords:
         return []
     
+    # Initialize Kalman Filter
+    # 2 dynamic parameters (x, v_x), 1 measurement (x)
+    kf = cv2.KalmanFilter(2, 1)
+    
+    # State transition matrix (A): x = x + v_x
+    kf.transitionMatrix = np.array([[1, 1], [0, 1]], np.float32)
+    
+    # Measurement matrix (H): we only measure x
+    kf.measurementMatrix = np.array([[1, 0]], np.float32)
+    
+    # Process noise (Q): allow velocity to change smoothly
+    kf.processNoiseCov = np.array([[1e-4, 0], [0, 1e-4]], np.float32)
+    
+    # Measurement noise (R): high noise means we trust prediction more than raw bounding box
+    kf.measurementNoiseCov = np.array([[1e-1]], np.float32)
+    
+    # Initial state
+    kf.statePost = np.array([[np.float32(coords[0])], [0.0]], np.float32)
+    
     smoothed = []
-    current_ema = coords[0]
     for c in coords:
-        current_ema = alpha * c + (1 - alpha) * current_ema
-        smoothed.append(current_ema)
+        # Prediction step
+        predicted = kf.predict()
+        
+        # Correction step
+        measurement = np.array([[np.float32(c)]])
+        corrected = kf.correct(measurement)
+        
+        smoothed.append(float(corrected[0][0]))
+        
     return smoothed
 
 def track_subject(video_path: str, fps: int = 1) -> list:
@@ -99,7 +125,7 @@ def track_subject(video_path: str, fps: int = 1) -> list:
     cap.release()
     
     # Smooth the coordinates to create a "lazy" cinematic camera pan
-    smoothed_x = smooth_coordinates(raw_focus_x, alpha=0.15)
+    smoothed_x = smooth_coordinates(raw_focus_x)
     
     tracking_data = []
     for t, sx in zip(timestamps, smoothed_x):

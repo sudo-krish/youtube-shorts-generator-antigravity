@@ -28,15 +28,16 @@ Before invoking any LLM, the `AIReviewer` executes hard-coded, deterministic Pyt
 - **Web Trends**: `fetch_regional_trends` scrapes external API data for algorithmic pacing logic.
 - **Capabilities**: Pre-reads `index_local_sfx`, `index_local_music`, and `get_capabilities_menu`.
 
-## The `run_multi_agent_pipeline` Architecture
-The orchestrator sequentially chains 6 specialized agents:
-1. `ObserverAgent` -> Outputs chronological descriptive log.
+## The `run_multi_agent_pipeline` Architecture (DAG)
+The orchestrator has abandoned the rigid linear pipeline in favor of a **Directed Acyclic Graph (DAG)** to prevent "Lost in the Middle" hallucination:
+1. `ObserverAgent` -> Parses video and outputs the chronological descriptive log.
 2. `ScriptWriterAgent` -> Takes log, outputs multi-variant templates.
-3. `DirectorAgent` -> Takes templates, outputs narrative vibe and music choice.
-4. `EditorAgent` -> Takes vibe, outputs technical FFmpeg breakdowns.
+3. `DirectorAgent` -> Takes log (NOT the script templates) to determine global visual vibe and music choice.
+4. `EditorAgent` -> Merges both the Script templates and the Director's vibe into technical FFmpeg breakdowns.
 5. `SpecialistAgent` -> Takes breakdowns + capabilities, validates math, outputs polished breakdown.
-6. `BuilderAgent` -> Takes polished breakdown, outputs strict Pydantic JSON array.
+6. `BuilderAgent` -> Takes ONLY the polished breakdown, dropping the massive narrative context history entirely, and outputs a strict Pydantic JSON array.
 
 ### Error Handling & API Safety
+- **Redrive Engine**: Jobs are explicitly tracked in the SQLite DB by `stage_name` and `chunk_id`. If a timeout occurs, the engine resumes exactly where it crashed.
 - **Sleep Loops**: The pipeline artificially pauses `time.sleep(60)` between major chunk executions to aggressively avoid Google Gemini's API rate limiting (`429 Too Many Requests`).
 - **File Cleanup**: Upon a successful chunk processing, the proxy video and raw chunk files are deleted to save storage space in the `workspace/` directory.

@@ -28,7 +28,8 @@ It loops over the `shorts` array in the JSON blueprint. For each variant, it ite
 ### 2. Physical Slicing
 For each phase, it calls `_prep_clip`:
 - Extracts `start_time` and `end_time` to calculate `duration`.
-- Runs a fast FFmpeg pass (`-c:v libx264 -preset ultrafast`) to cut that specific phase from the original video.
+- Invokes `get_previous_iframe(start_time)` from `keyframe_mapper.py` to mathematically snap the start time to the nearest preceding Keyframe.
+- Runs an instantaneous stream-copy FFmpeg pass (`-c copy`) to cut that specific phase. This bypasses video decoding entirely, preventing audio desync and "black frames", while being drastically faster than re-encoding.
 - The output file is formatted predictably: `outputs/{video_id}/{video_id}_{variant_id}_{phase_index}_{phase_id}.mp4`.
 
 ### 3. Metadata Extraction

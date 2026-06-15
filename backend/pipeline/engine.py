@@ -7,7 +7,7 @@ import concurrent.futures
 
 from .capabilities.effects.registry import create_effect
 from .capabilities.transformations.hyperframe import generate_crop_polynomial
-from .capabilities.audio.mixing import build_audio_mix_filter
+from .capabilities.audio.mixing import build_audio_mix_filter, run_demucs
 from .capabilities.text.overlays import build_drawtext_filter, run_whisperx
 
 logger = logging.getLogger(__name__)
@@ -126,7 +126,7 @@ def execute_pipeline(clips_data: dict, output_path: str):
     chunk_files = [None] * len(clips)
     hook_file = None
     
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    with concurrent.futures.ProcessPoolExecutor() as executor:
         futures = []
         for i in range(len(clips)):
             futures.append(executor.submit(
@@ -159,7 +159,9 @@ def execute_pipeline(clips_data: dict, output_path: str):
     hook_xfade_offset = max(0.1, hook_duration - xfade_duration)
     audio_xfade_duration = 1.0
     
-    filter_commands.append(f"[0:v][1:v]xfade=transition={first_trans}:duration={xfade_duration}:offset={hook_xfade_offset}[xf_v_0]")
+    filter_commands.append("[0:v]scale=1080:1920,fps=60[v0_scaled]")
+    filter_commands.append("[1:v]scale=1080:1920,fps=60[v1_scaled]")
+    filter_commands.append(f"[v0_scaled][v1_scaled]xfade=transition={first_trans}:duration={xfade_duration}:offset={hook_xfade_offset}[xf_v_0]")
     filter_commands.append(f"[0:a][1:a]acrossfade=d={audio_xfade_duration}[xf_a_0]")
     
     current_offset = hook_xfade_offset + durations[0] - xfade_duration
@@ -174,7 +176,8 @@ def execute_pipeline(clips_data: dict, output_path: str):
         next_v = f"[xf_v_{i}]"
         next_a = f"[xf_a_{i}]"
         
-        filter_commands.append(f"{last_v}[{i+1}:v]xfade=transition={trans_name}:duration={xfade_duration}:offset={current_offset}{next_v}")
+        filter_commands.append(f"[{i+1}:v]scale=1080:1920,fps=60[v{i+1}_scaled]")
+        filter_commands.append(f"{last_v}[v{i+1}_scaled]xfade=transition={trans_name}:duration={xfade_duration}:offset={current_offset}{next_v}")
         filter_commands.append(f"{last_a}[{i+1}:a]acrossfade=d={audio_xfade_duration}{next_a}")
         
         current_offset += (durations[i] - xfade_duration)
@@ -185,53 +188,90 @@ def execute_pipeline(clips_data: dict, output_path: str):
     filter_commands.append(f"{last_a}acopy[ca]")
     filter_complex = "; ".join(filter_commands)
 
-    # Audio Mix
-    input_idx_for_mix = len(chunk_files) + 1
-    bgm_filename = clips_data.get("background_audio_track", "bgm.mp3")
-    audio_mix_args, audio_filter_complex, final_audio_map = build_audio_mix_filter(global_punch_ins, filter_complex, input_idx_for_mix, bgm_filename)
-
-    temp_wav = output_path.replace(".mp4", "_temp_mix.wav")
+    temp_wav = output_path.replace(".mp4", "_temp_pre_mix.wav")
     ass_file = output_path.replace(".mp4", "_captions.ass")
     temp_vid = output_path.replace(".mp4", "_temp_vid.mp4")
     
     cmd_stage2 = ['ffmpeg', '-y']
     cmd_stage2.extend(['-i', hook_file])
     for chunk in chunk_files: cmd_stage2.extend(['-i', chunk])
-    cmd_stage2.extend(audio_mix_args)
     cmd_stage2.extend([
-        '-filter_complex', audio_filter_complex,
-        '-map', '[cv]', '-map', final_audio_map,
-        '-c:v', 'libx264', '-preset', 'fast', 
-        '-c:a', 'pcm_s16le', # Export audio as wav compatible stream alongside video (wait, no. We export wav and mp4 separately or together?)
-    ])
-    
-    # Wait, it's easier to export the video temp AND the audio temp in one go!
-    cmd_stage2.extend([
+        '-filter_complex', filter_complex,
         '-map', '[cv]', temp_vid,
-        '-map', final_audio_map, temp_wav
+        '-map', '[ca]', temp_wav
     ])
     subprocess.run(cmd_stage2, check=True, capture_output=True)
 
-    logger.info("Stage 3: Running WhisperX...")
-    run_whisperx(temp_wav, ass_file)
+    logger.info("Stage 2.5: Running Demucs Audio Separation...")
+    vocals_path = run_demucs(temp_wav, os.path.dirname(output_path))
+    
+    logger.info("Stage 3: Running Audio Mix & WhisperX...")
+    # Audio Mix
+    bgm_filename = clips_data.get("background_audio_track", "bgm.mp3")
+    final_mix_wav = output_path.replace(".mp4", "_temp_mix.wav")
+    
+    audio_mix_args, audio_filter_complex, final_audio_map = build_audio_mix_filter(global_punch_ins, temp_wav, vocals_path, bgm_filename)
+    
+    cmd_mix = ['ffmpeg', '-y']
+    cmd_mix.extend(audio_mix_args)
+    cmd_mix.extend([
+        '-filter_complex', f"{audio_filter_complex}; {final_audio_map}loudnorm=I=-14:LRA=11:TP=-1.5[loud_aout]",
+        '-map', '[loud_aout]',
+        final_mix_wav
+    ])
+    subprocess.run(cmd_mix, check=True, capture_output=True)
+
+    run_whisperx(final_mix_wav, ass_file)
     
     logger.info("Stage 4: Final Assembly with ASS Subtitles...")
-    cmd_stage4 = [
-        'ffmpeg', '-y',
-        '-i', temp_vid,
-        '-i', temp_wav,
-        '-vf', f"subtitles={ass_file}",
-        '-c:v', 'libx264', '-preset', 'fast',
-        '-c:a', 'aac',
-        output_path
-    ]
+    json_file = output_path.replace(".mp4", "_captions.json")
+    webm_file = output_path.replace(".mp4", "_captions.webm")
+    
+    compositor_dir = os.path.join(os.path.dirname(__file__), "capabilities", "text", "compositor")
+    has_compositor = False
+    
+    if os.path.exists(json_file) and os.path.exists(os.path.join(compositor_dir, "index.js")):
+        logger.info("Running Headless Compositor for Dynamic Subtitles...")
+        try:
+            total_dur = sum(durations)
+            subprocess.run(["node", "index.js", json_file, webm_file, str(total_dur)], cwd=compositor_dir, check=True, capture_output=True)
+            has_compositor = os.path.exists(webm_file)
+        except Exception as e:
+            logger.error(f"Compositor failed: {e}")
+            
+    if has_compositor:
+        cmd_stage4 = [
+            'ffmpeg', '-y',
+            '-i', temp_vid,
+            '-i', final_mix_wav,
+            '-i', webm_file,
+            '-filter_complex', '[0:v][2:v]overlay=0:0[vout]',
+            '-map', '[vout]',
+            '-map', '1:a',
+            '-c:v', 'libx264', '-preset', 'fast',
+            '-c:a', 'aac',
+            output_path
+        ]
+    else:
+        cmd_stage4 = [
+            'ffmpeg', '-y',
+            '-i', temp_vid,
+            '-i', final_mix_wav,
+            '-vf', f"subtitles={ass_file}",
+            '-c:v', 'libx264', '-preset', 'fast',
+            '-c:a', 'aac',
+            output_path
+        ]
     subprocess.run(cmd_stage4, check=True, capture_output=True)
     
     # Cleanup temps
     try:
         os.remove(temp_wav)
+        os.remove(final_mix_wav)
         os.remove(temp_vid)
         os.remove(hook_file)
+        if vocals_path and os.path.exists(vocals_path):
+            os.remove(vocals_path)
         for chunk in chunk_files: os.remove(chunk)
     except: pass
     

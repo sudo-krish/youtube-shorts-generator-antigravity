@@ -3,12 +3,19 @@ import subprocess
 import json
 import logging
 from .file_manager import prepare_project_directory
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from ai_director.tools.keyframe_mapper import get_previous_iframe
 
 logger = logging.getLogger(__name__)
 
 def _prep_clip(phase: dict, video_path: str, video_id: str, variant_id: str, phase_index: int, out_dir: str) -> str:
-    start_t = float(phase['start_time'])
+    original_start_t = float(phase['start_time'])
     end_t = float(phase['end_time'])
+    
+    # Snap to previous I-frame to prevent slow decoding and black frames
+    start_t = get_previous_iframe(video_path, original_start_t)
     duration = end_t - start_t
     
     phase_id = phase.get('phase_id', f"phase_{phase_index}")
@@ -43,11 +50,10 @@ def _prep_clip(phase: dict, video_path: str, video_id: str, variant_id: str, pha
     
     cmd = [
         "ffmpeg", "-y", 
-        "-i", video_path, 
         "-ss", str(start_t),
+        "-i", video_path, 
         "-t", str(duration),
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-        "-c:a", "aac", "-async", "1",
+        "-c", "copy",
         out_file
     ]
     

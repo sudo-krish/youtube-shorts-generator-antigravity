@@ -6,12 +6,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 try:
-    import pytesseract
-    from PIL import Image
+    import easyocr
     HAS_OCR = True
+    # easyocr will automatically use GPU if available
+    reader = easyocr.Reader(['en'])
 except ImportError:
     HAS_OCR = False
-    logger.warning("pytesseract or PIL not installed. OCR tool will gracefully degrade.")
+    logger.warning("easyocr not installed. OCR tool will gracefully degrade.")
 
 def read_ocr_from_video(video_path: str, timestamps: list) -> dict:
     """
@@ -37,8 +38,8 @@ def read_ocr_from_video(video_path: str, timestamps: list) -> dict:
             subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
             
             # Run OCR
-            img = Image.open(temp_img_path)
-            text = pytesseract.image_to_string(img)
+            results = reader.readtext(temp_img_path, detail=0)
+            text = " ".join(results)
             
             if text.strip():
                 ocr_results[ts] = text.strip()

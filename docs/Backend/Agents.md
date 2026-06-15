@@ -28,15 +28,15 @@ The Antigravity backend runs on a rigid, highly specialized 6-agent template pip
 
 ## 3. Director Agent (`agents/director.py`)
 - **Role**: Creative Lead & Vibe Setter.
-- **Inputs**: The Script Writer's templates + Local SFX Library + Local Music Library.
+- **Inputs**: The Observer's narrative log + Local SFX Library + Local Music Library.
 - **Outputs**: Detailed narrative beats, dynamic text overlays, and the `BACKGROUND AUDIO` track.
-- **Prompt Logic**: Chooses exactly one semantic music track from the provided array to score the emotional tone of the video variant.
+- **Prompt Logic**: Bypasses the Scriptwriter entirely to choose exactly one semantic music track from the provided array to score the emotional tone of the video variant based on the raw Observer events.
 
 ## 4. Editor Agent (`agents/editor.py`)
 - **Role**: Technical FFmpeg Translator.
-- **Inputs**: The Director's vision + Dynamic Capabilities Menu.
+- **Inputs**: The Script Writer's templates + The Director's vision + Dynamic Capabilities Menu.
 - **Outputs**: Strict text breakdown of timestamps, spatial focus, applied effects, and transitions.
-- **Prompt Logic**: Forced to map the Director's vibes into real FFmpeg effect names (e.g. `VHS_Overlay`, `pixelize` xfade). 
+- **Prompt Logic**: Forced to map the Director's vibes into real FFmpeg effect names (e.g. `VHS_Overlay`, `pixelize` xfade), using the Scriptwriter's phase timings as hard boundaries. 
 
 ## 5. YouTube Specialist Agent (`agents/specialist.py`)
 - **Role**: Retention Architect & Final Validator.

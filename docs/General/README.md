@@ -20,22 +20,25 @@ Unlike standard clipping tools that just chop videos based on arbitrary timestam
 ## 1. Pre-Generated Context Engine
 The AI does not blindly hallucinate. We run pre-processing Python tools before the LLM is ever invoked.
 - **Audio Spikes:** Locates high-decibel moments (screams, gunshots) using `scipy`.
-- **OCR Kills:** Reads the killfeed via `pytesseract` to provide hard evidence.
-- **YOLOv8 Tracking:** Tracks player movement dynamically for hyper-panning.
+- **OCR Kills:** Reads the killfeed via `easyocr` to provide hard evidence.
+- **YOLOv8 & Kalman Filter Tracking:** Tracks player movement dynamically for hyper-panning.
 
 ## 2. The 6-Agent AI Assembly Line
-A rigid prompt chain designed to drastically reduce hallucinations and enforce formatting.
+A rigid Directed Acyclic Graph (DAG) prompt chain designed to drastically reduce hallucinations and enforce formatting.
 - **Observer:** Extracts dense visual data logs.
 - **Scriptwriter:** Generates narrative templates (Meme Fail, Clutch).
-- **Director:** Injects pacing, background music (semantic matching), and text overlays.
-- **Editor:** Translates creative vibes into physical FFmpeg parameters.
+- **Director:** Injects pacing, background music (semantic matching), and global stylistic vibe.
+- **Editor:** Translates creative vibes and narrative phases into physical FFmpeg parameters.
 - **YouTube Specialist:** Validates algorithmic pacing and fixes temporal math.
-- **Builder:** Outputs the strict Pydantic JSON structure.
+- **Builder:** Outputs the strict Pydantic JSON structure (receiving ONLY the Specialist output).
 
 ## 3. FFmpeg Dynamic Rendering
-- Uses a multi-stage chunk rendering strategy to avoid memory overflow.
+- Slices the video instantaneously by snapping to Keyframes (I-Frames).
+- Uses a multi-stage chunk rendering strategy (`ProcessPoolExecutor`) to avoid memory overflow.
 - Employs `xfade` for cinematic transitions (wipes, zooms) instead of jarring hard cuts.
-- Applies dynamic ducking via sidechain compression to automatically lower music volume when the player speaks.
+- Applies **Demucs** vocal isolation and dynamic ducking via sidechain compression to automatically lower music volume when the player speaks.
+- Masters the final mix to YouTube standards (-14 LUFS).
+- Generates cinematic `.webm` subtitles with alpha channel using a Node.js Headless Compositor.
 
 ## How to Run Locally
 

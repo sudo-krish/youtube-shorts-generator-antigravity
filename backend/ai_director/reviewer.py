@@ -5,6 +5,8 @@ import logging
 import uuid
 import ffmpeg
 
+from tenacity import retry, wait_exponential, stop_after_attempt
+
 from .agents.observer import ObserverAgent
 from .agents.scriptwriter import ScriptWriterAgent
 from .agents.director import DirectorAgent
@@ -26,6 +28,10 @@ logger = logging.getLogger(__name__)
 
 WORKSPACE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "workspace")
 os.makedirs(WORKSPACE_DIR, exist_ok=True)
+
+@retry(wait=wait_exponential(multiplier=1, min=4, max=60), stop=stop_after_attempt(5))
+def safe_execute(func, *args, **kwargs):
+    return func(*args, **kwargs)
 
 class AIReviewer:
     """The multi-agent orchestrator that manages the N-Phase AI Assembly Line."""
@@ -141,7 +147,7 @@ class AIReviewer:
                 tracking_data = track_subject(chunk_path, fps=1)
                 
                 if job_id: log_stage(job_id, "observer", "running", "Observer Agent reading video context...", chunk_id=chunk_idx)
-                context = self.observer.execute(uploaded_file, self.metadata, audio_spikes, ocr_dumps, tracking_data)
+                context = safe_execute(self.observer.execute, uploaded_file, self.metadata, audio_spikes, ocr_dumps, tracking_data)
                 save_state("observer", context)
             
             current_stage = "scriptwriter"
@@ -150,7 +156,7 @@ class AIReviewer:
             if not scripts:
                 web_trends = fetch_regional_trends(self.metadata.get("game_name", "Global"), self.metadata.get("region", "Global"))
                 if job_id: log_stage(job_id, "scriptwriter", "running", "Script Writer generating multi-variant templates...", chunk_id=chunk_idx)
-                scripts = self.scriptwriter.execute(context, self.metadata, web_trends)
+                scripts = safe_execute(self.scriptwriter.execute, context, self.metadata, web_trends)
                 save_state("scriptwriter", scripts)
             
             current_stage = "director"
@@ -160,7 +166,7 @@ class AIReviewer:
                 sfx_library = index_local_sfx()
                 music_library = index_local_music()
                 if job_id: log_stage(job_id, "director", "running", "Director injecting magic and vibes...", chunk_id=chunk_idx)
-                vision = self.director.execute(scripts, self.metadata, sfx_library, music_library)
+                vision = safe_execute(self.director.execute, context, self.metadata, sfx_library, music_library)
                 save_state("director", vision)
             
             current_stage = "editor"
@@ -168,7 +174,7 @@ class AIReviewer:
             breakdown = get_state("editor")
             if not breakdown:
                 if job_id: log_stage(job_id, "editor", "running", "Editor translating to FFmpeg technical capabilities...", chunk_id=chunk_idx)
-                breakdown = self.editor.execute(vision, self.metadata)
+                breakdown = safe_execute(self.editor.execute, scripts, vision, self.metadata)
                 save_state("editor", breakdown)
             
             current_stage = "specialist"
@@ -184,14 +190,14 @@ class AIReviewer:
                 capabilities = get_capabilities_menu()
                 
                 if job_id: log_stage(job_id, "specialist", "running", "YouTube Specialist polishing technical plans for maximum algorithm retention...", chunk_id=chunk_idx)
-                validated_plans = self.specialist.execute(breakdown, self.metadata, math_report, youtube_rules, capabilities)
+                validated_plans = safe_execute(self.specialist.execute, breakdown, self.metadata, math_report, youtube_rules, capabilities)
                 save_state("specialist", validated_plans)
             
             current_stage = "builder"
             json_output = get_state("builder")
             if not json_output:
                 if job_id: log_stage(job_id, "builder", "running", "Builder formatting finalized JSON blueprints...", chunk_id=chunk_idx)
-                json_output = self.builder.execute(validated_plans)
+                json_output = safe_execute(self.builder.execute, validated_plans)
                 save_state("builder", json_output)
             
             return json_output.get("shorts", []), did_work
@@ -246,8 +252,7 @@ class AIReviewer:
                     all_shorts.extend(shorts)
                     
                     if idx < len(chunks) - 1 and did_work:
-                        job_logger.info(f"Chunk {idx} completed processing. Sleeping 60s to respect API limits before next chunk...")
-                        time.sleep(60)
+                        job_logger.info(f"Chunk {idx} completed processing. Tenacity will handle dynamic backoff if required.")
                         
                     start_offset += (chunk_duration - overlap)
                 except Exception as chunk_e:

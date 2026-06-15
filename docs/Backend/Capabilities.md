@@ -33,4 +33,5 @@ Contains Python classes inheriting from `BaseEffect`.
 - `hyperframe.py`: Contains complex math utilities for spatial crop panning. Translates the YOLOv8 coordinate `[start_x, end_x]` data into dynamic FFmpeg `crop='x_expr'` polynomials so the camera smoothly tracks the player across the screen.
 
 ### `text/`
-- `overlays.py`: Handles typography. While simple `drawtext` overlays are supported, the primary function is `run_whisperx`. It invokes the WhisperX CLI, parses word-level timings, and formats them into the powerful `.ass` format for Alex Hormozi-style bouncing captions.
+- `overlays.py`: Handles typography data extraction. It invokes the WhisperX ASR engine to get highly accurate word-level timings and dumps them into `captions.json`.
+- `compositor/index.js`: A dedicated Node.js microservice. It uses Puppeteer to launch an off-screen Chromium browser, reads `captions.json`, and renders dynamic HTML5 "Hormozi Pop" animations on an HTML Canvas. It captures the canvas frame-by-frame and uses FFmpeg to output a transparent `.webm` video for the Python engine to overlay.

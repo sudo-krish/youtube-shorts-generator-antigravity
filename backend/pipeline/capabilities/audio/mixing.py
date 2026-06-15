@@ -15,10 +15,28 @@ def get_bgm_and_sfx_paths(bgm_filename: str = "bgm.mp3"):
     
     return bgm_path, sfx_impact_path, sfx_whoosh_path
 
-def build_audio_mix_filter(global_punch_ins: list, filter_complex: str, input_idx: int, bgm_filename: str = "bgm.mp3"):
-    """Dynamically builds the FFmpeg audio mix filter chain for BGM and requested SFX impacts."""
+def run_demucs(audio_path: str, out_dir: str):
+    """Runs Demucs to separate vocals from the audio track and returns the path to the vocals.wav."""
+    import subprocess
+    cmd = ["demucs", "--two-stems=vocals", "-n", "htdemucs", "--out", out_dir, audio_path]
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
+    basename = os.path.splitext(os.path.basename(audio_path))[0]
+    vocals_path = os.path.join(out_dir, "htdemucs", basename, "vocals.wav")
+    
+    if os.path.exists(vocals_path):
+        return vocals_path
+    return None
+
+def build_audio_mix_filter(global_punch_ins: list, main_audio_path: str, vocals_path: str, bgm_filename: str = "bgm.mp3"):
+    """Dynamically builds the FFmpeg audio mix filter chain for BGM, main audio, and SFX impacts."""
     bgm_path, sfx_impact_path, sfx_whoosh_path = get_bgm_and_sfx_paths(bgm_filename)
     ffmpeg_args = []
+    
+    ffmpeg_args.extend(['-i', main_audio_path])
+    main_in = "[0:a]"
+    input_idx = 1
+    filter_complex = ""
     
     audio_mix_inputs = []
     amix_weights = []
@@ -28,13 +46,21 @@ def build_audio_mix_filter(global_punch_ins: list, filter_complex: str, input_id
         bgm_in = f"[{input_idx}:a]"
         input_idx += 1
         
-        # Audio Ducking: Split main audio, feed one side to sidechaincompress with BGM
-        # threshold=0.08 means when main audio gets reasonably loud, it squashes the BGM
-        filter_complex += f"; [ca]asplit=2[ca_main][ca_side]; {bgm_in}[ca_side]sidechaincompress=threshold=0.08:ratio=4.0:attack=10:release=200[ducked_bgm]"
-        audio_mix_inputs.extend(["[ca_main]", "[ducked_bgm]"])
-        amix_weights.extend(["1.0", "0.4"]) # BGM baseline is 0.4 volume, ducked lower during talking
+        if vocals_path and os.path.exists(vocals_path):
+            ffmpeg_args.extend(['-i', vocals_path])
+            vocals_in = f"[{input_idx}:a]"
+            input_idx += 1
+            
+            # Audio Ducking using isolated vocals
+            filter_complex += f"{bgm_in}{vocals_in}sidechaincompress=threshold=0.08:ratio=4.0:attack=10:release=200[ducked_bgm]"
+            audio_mix_inputs.extend([main_in, "[ducked_bgm]"])
+            amix_weights.extend(["1.0", "0.4"])
+        else:
+            filter_complex += f"{main_in}asplit=2[ca_main][ca_side]; {bgm_in}[ca_side]sidechaincompress=threshold=0.08:ratio=4.0:attack=10:release=200[ducked_bgm]"
+            audio_mix_inputs.extend(["[ca_main]", "[ducked_bgm]"])
+            amix_weights.extend(["1.0", "0.4"])
     else:
-        audio_mix_inputs.append("[ca]")
+        audio_mix_inputs.append(main_in)
         amix_weights.append("1.0")
         
     if os.path.exists(sfx_impact_path) and global_punch_ins:
@@ -43,7 +69,8 @@ def build_audio_mix_filter(global_punch_ins: list, filter_complex: str, input_id
             ffmpeg_args.extend(['-i', sfx_impact_path])
             sfx_in = f"[{input_idx}:a]"
             sfx_out = f"[sfx_i_{i}]"
-            filter_complex += f"; {sfx_in}adelay={delay_ms}|{delay_ms}{sfx_out}"
+            prefix = "; " if filter_complex else ""
+            filter_complex += f"{prefix}{sfx_in}adelay={delay_ms}|{delay_ms}{sfx_out}"
             audio_mix_inputs.append(sfx_out)
             amix_weights.append("1.5")
             input_idx += 1
@@ -55,7 +82,8 @@ def build_audio_mix_filter(global_punch_ins: list, filter_complex: str, input_id
             ffmpeg_args.extend(['-i', sfx_whoosh_path])
             sfx_in = f"[{input_idx}:a]"
             sfx_out = f"[sfx_w_{i}]"
-            filter_complex += f"; {sfx_in}adelay={delay_ms}|{delay_ms}{sfx_out}"
+            prefix = "; " if filter_complex else ""
+            filter_complex += f"{prefix}{sfx_in}adelay={delay_ms}|{delay_ms}{sfx_out}"
             audio_mix_inputs.append(sfx_out)
             amix_weights.append("1.0")
             input_idx += 1
@@ -63,10 +91,10 @@ def build_audio_mix_filter(global_punch_ins: list, filter_complex: str, input_id
     if len(audio_mix_inputs) > 1:
         mix_inputs_str = "".join(audio_mix_inputs)
         weights_str = " ".join(amix_weights)
-        filter_complex += f"; {mix_inputs_str}amix=inputs={len(audio_mix_inputs)}:duration=first:weights={weights_str}[fouta]"
+        prefix = "; " if filter_complex else ""
+        filter_complex += f"{prefix}{mix_inputs_str}amix=inputs={len(audio_mix_inputs)}:duration=first:weights={weights_str}[fouta]"
         audio_map = "[fouta]"
     else:
-        # If no BGM and no SFX, handle the case where we didn't use asplit
-        audio_map = "[ca]"
+        audio_map = main_in
         
     return ffmpeg_args, filter_complex, audio_map

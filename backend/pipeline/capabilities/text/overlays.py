@@ -60,6 +60,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 
                 f.write(f"Dialogue: 0,{start_t},{end_t},Pop,,0,0,0,,{pop_anim}{word}\n")
 
+def generate_json_subtitles(word_segments, output_file="captions.json"):
+    """Generates a JSON file of word timings for the Node.js headless compositor."""
+    import json
+    with open(output_file, 'w', encoding='utf-8') as f:
+        json.dump(word_segments, f, indent=2)
+
 def run_whisperx(audio_path: str, ass_file: str):
     """Runs WhisperX to extract word-level alignments and generates the .ass file."""
     device = "cpu"
@@ -76,3 +82,5 @@ def run_whisperx(audio_path: str, ass_file: str):
             all_words.extend(segment["words"])
 
     generate_ass_subtitles(all_words, ass_file)
+    json_file = ass_file.replace('.ass', '.json')
+    generate_json_subtitles(all_words, json_file)

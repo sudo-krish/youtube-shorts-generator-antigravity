@@ -36,8 +36,9 @@ erDiagram
         string job_id PK
         string video_id FK
         string status
-        string metadata
+        float created_at
         string json_path
+        string metadata
         int num_chunks
     }
     
@@ -58,6 +59,8 @@ erDiagram
         string variant_id
         string status
         string error_logs
+        float created_at
+        float updated_at
     }
 ```
 

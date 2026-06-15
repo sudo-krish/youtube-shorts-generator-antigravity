@@ -1,15 +1,42 @@
-.agent/
-backend/venv
-backend/downloads
-backend/outputs
-backend/__pycache__
-backend/google/__pycache__/
-backend/.env
-.venv
-.agents/
-
-backend/effects/__pycache__/
-*.db
-*.pyc
-backend/workspace
+# General
+.DS_Store
 .env
+*.db
+*.sqlite3
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+backend/venv/
+backend/.env
+.pytest_cache/
+.coverage
+.tox/
+
+# Node.js & React
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dist/
+build/
+.next/
+out/
+
+# Application Specific
+backend/downloads/
+backend/outputs/
+backend/workspace/
+backend/antigravity.db
+
+# IDE & Agents
+.vscode/
+.idea/
+.agent/
+.agents/
