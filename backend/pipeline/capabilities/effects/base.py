@@ -1,6 +1,18 @@
 class BaseEffect:
     """Abstract base class for all dynamically applied FFmpeg effects."""
     
+    @classmethod
+    def get_metadata(cls) -> dict:
+        """
+        Returns rich metadata for the AI Editor to understand how and when to use this effect.
+        Format: {"name": str, "description": str, "usage_scenario": str}
+        """
+        return {
+            "name": "base_effect",
+            "description": "Base effect, should not be used.",
+            "usage_scenario": "N/A"
+        }
+
     def __init__(self, start_time: float, duration: float):
         self.start_time = start_time
         self.duration = duration

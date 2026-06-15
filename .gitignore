@@ -9,3 +9,6 @@ backend/.env
 .agents/
 
 backend/effects/__pycache__/
+*.db
+*.pyc
+backend/workspace

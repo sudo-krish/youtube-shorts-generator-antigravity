@@ -1,26 +1,31 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { UploadCloud, CheckCircle, Play, FileJson, Scissors } from 'lucide-react';
+import { UploadCloud, CheckCircle, FileJson, Scissors } from 'lucide-react';
 import * as animeLib from 'animejs';
 
 const anime = (animeLib as any).default || animeLib;
 
 type FlowState = 'UPLOAD' | 'READY' | 'PROCESSING' | 'DONE';
 
-export const UploadZone = ({ onUploadSuccess, onProjectSelect }: { onUploadSuccess?: (data: any) => void, onProjectSelect?: (project: any) => void }) => {
+import { PipelineVisualizer } from './PipelineVisualizer';
+
+export const UploadZone = ({ onUploadSuccess, selectedJobId }: { onUploadSuccess?: (data: any) => void, selectedJobId?: string | null }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [flowState, setFlowState] = useState<FlowState>('UPLOAD');
   
   const [videoPath, setVideoPath] = useState<string | null>(null);
   const [videoName, setVideoName] = useState<string | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [agentStates, setAgentStates] = useState<any>({});
   
   const [jsonPath, setJsonPath] = useState<string | null>(null);
-  const [aiData, setAiData] = useState<any>(null);
   const [progressText, setProgressText] = useState<string>('');
-
-  const [projects, setProjects] = useState<any[]>([]);
+  const [globalFailureLogs, setGlobalFailureLogs] = useState<string | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const iconRef = useRef<SVGSVGElement>(null);
+
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [agentModels, setAgentModels] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (flowState === 'UPLOAD' && cardRef.current) {
@@ -34,16 +39,72 @@ export const UploadZone = ({ onUploadSuccess, onProjectSelect }: { onUploadSucce
         });
     }
 
-    // Fetch historical projects
-    fetch('http://localhost:8000/api/projects')
+    // Fetch available models
+    fetch('http://localhost:8000/api/models')
       .then(res => res.json())
       .then(data => {
         if (data.status === 'success') {
-            setProjects(data.projects);
+            setAvailableModels(data.models);
+        }
+      })
+      .catch(console.error);
+
+    // Fetch config
+    fetch('http://localhost:8000/api/config')
+      .then(res => res.json())
+      .then(data => {
+        if (data.models) {
+            setAgentModels(data.models);
         }
       })
       .catch(console.error);
   }, [flowState]);
+
+  useEffect(() => {
+    if (selectedJobId) {
+        setJobId(selectedJobId);
+        setFlowState('PROCESSING');
+        
+        // Fetch specific job
+        fetch(`http://localhost:8000/api/status/${selectedJobId}`)
+          .then(res => res.json())
+          .then(data => {
+             setAgentStates(data.agent_states || {});
+             if (data.status === 'completed' || data.status === 'failed') {
+                 setFlowState('DONE');
+                 if (data.status === 'failed') {
+                     fetch(`http://localhost:8000/api/jobs/${selectedJobId}/logs`)
+                         .then(res => res.json())
+                         .then(logData => {
+                             if (logData.status === 'success') {
+                                 setGlobalFailureLogs(logData.logs);
+                             }
+                         });
+                 }
+             }
+          });
+          
+        startPolling(selectedJobId);
+    } else {
+        setFlowState('UPLOAD');
+        setJobId(null);
+        setAgentStates({});
+    }
+  }, [selectedJobId]);
+
+  const handleModelChange = async (agent: string, model: string) => {
+    const newModels = { ...agentModels, [agent]: model };
+    setAgentModels(newModels);
+    try {
+        await fetch('http://localhost:8000/api/config', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ models: newModels })
+        });
+    } catch (e) {
+        console.error('Failed to save config', e);
+    }
+  };
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -102,15 +163,18 @@ export const UploadZone = ({ onUploadSuccess, onProjectSelect }: { onUploadSucce
       formData.append('file', file);
       
       try {
-        const res = await fetch('http://localhost:8000/api/upload', {
+        const response = await fetch('http://localhost:8000/api/upload', {
           method: 'POST',
           body: formData
         });
-        const data = await res.json();
-        console.log('Upload success:', data);
-        setVideoPath(data.video_path);
-        setVideoName(file.name);
-        setFlowState('READY');
+        const result = await response.json();
+        if (result.status === 'success') {
+            setVideoPath(result.video_id);
+            setVideoName(file.name);
+            setFlowState('READY');
+        } else {
+            setFlowState('READY');
+        }
       } catch (err) {
         console.error('Upload failed:', err);
         alert('Upload failed.');
@@ -122,44 +186,61 @@ export const UploadZone = ({ onUploadSuccess, onProjectSelect }: { onUploadSucce
     }
   }, [handleDragLeave, flowState]);
 
+  const startPolling = (currentJobId: string) => {
+    const pollInterval = setInterval(async () => {
+        try {
+            const statusRes = await fetch(`http://localhost:8000/api/status/${currentJobId}`);
+            const statusData = await statusRes.json();
+            
+            if (statusData.agent_states) {
+                setAgentStates(statusData.agent_states);
+            }
+            
+            if (statusData.status === 'completed') {
+                clearInterval(pollInterval);
+                setJsonPath(statusData.json_path);
+                setProgressText('');
+                if (onUploadSuccess) onUploadSuccess({ data: statusData.result, json_path: statusData.json_path });
+                setFlowState('DONE');
+            } else if (statusData.status && statusData.status.includes('failed')) {
+                clearInterval(pollInterval);
+                setProgressText('Failed. You can Redrive to resume from the exact point of failure.');
+                setFlowState('DONE');
+                fetch(`http://localhost:8000/api/jobs/${currentJobId}/logs`)
+                    .then(res => res.json())
+                    .then(logData => {
+                        if (logData.status === 'success') {
+                            setGlobalFailureLogs(logData.logs);
+                        }
+                    });
+            } else {
+                setProgressText(statusData.progress || 'Processing...');
+            }
+        } catch (err) {
+            console.error("Polling error:", err);
+        }
+    }, 3000);
+  };
+
   const handleAnalyze = async () => {
     setFlowState('PROCESSING');
     setProgressText('Initializing job...');
+    setAgentStates({});
     try {
-        const res = await fetch('http://localhost:8000/api/analyze', {
+        const response = await fetch('http://localhost:8000/api/analyze', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ video_path: videoPath })
+            body: JSON.stringify({ 
+                video_id: videoPath,
+                metadata: {}
+            })
         });
-        const data = await res.json();
+        const data = await response.json();
         
         if (data.status === 'processing' && data.job_id) {
-            const pollInterval = setInterval(async () => {
-                try {
-                    const statusRes = await fetch(`http://localhost:8000/api/status/${data.job_id}`);
-                    const statusData = await statusRes.json();
-                    
-                    if (statusData.status === 'completed') {
-                        clearInterval(pollInterval);
-                        setAiData(statusData.result.top_fights);
-                        setJsonPath(statusData.json_path);
-                        setProgressText('');
-                        if (onUploadSuccess) onUploadSuccess({ data: statusData.result, json_path: statusData.json_path });
-                        setFlowState('DONE');
-                    } else if (statusData.status === 'failed') {
-                        clearInterval(pollInterval);
-                        alert('Analysis failed: ' + statusData.progress);
-                        setProgressText('');
-                        setFlowState('READY');
-                    } else {
-                        setProgressText(statusData.progress || 'Processing...');
-                    }
-                } catch (err) {
-                    console.error("Polling error:", err);
-                }
-            }, 3000);
+            setJobId(data.job_id);
+            startPolling(data.job_id);
         } else if (data.status === 'success') {
-            setAiData(data.data);
             setJsonPath(data.json_path);
             setProgressText('');
             if (onUploadSuccess) onUploadSuccess(data);
@@ -170,6 +251,23 @@ export const UploadZone = ({ onUploadSuccess, onProjectSelect }: { onUploadSucce
         }
     } catch(e) {
         alert('Failed to start AI analysis.');
+        setFlowState('READY');
+    }
+  }
+
+  const handleRedrive = async () => {
+    if (!jobId) return;
+    setFlowState('PROCESSING');
+    setProgressText('Redriving from failure...');
+    try {
+        await fetch(`http://localhost:8000/api/redrive/${jobId}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ video_path: videoPath, metadata: {} })
+        });
+        startPolling(jobId);
+    } catch (e) {
+        alert('Failed to redrive.');
         setFlowState('READY');
     }
   }
@@ -188,15 +286,6 @@ export const UploadZone = ({ onUploadSuccess, onProjectSelect }: { onUploadSucce
         alert('Failed to trigger splicer.');
         setFlowState('DONE');
     }
-  }
-
-  const loadProject = (project: any) => {
-    setVideoPath(project.video_path);
-    setVideoName(project.video_name);
-    setJsonPath(project.json_path);
-    setAiData(project.data);
-    setFlowState('DONE');
-    if (onProjectSelect) onProjectSelect(project);
   }
 
   return (
@@ -230,6 +319,28 @@ export const UploadZone = ({ onUploadSuccess, onProjectSelect }: { onUploadSucce
             </div>
         )}
 
+        {/* Agent Model Configuration UI */}
+        {flowState === 'UPLOAD' && Object.keys(agentModels).length > 0 && (
+            <div className="glass-panel p-6 rounded-3xl border border-white/10 w-full mb-6 shadow-xl">
+                <h3 className="text-xl font-bold text-white mb-4">Agent Brain Configuration</h3>
+                <p className="text-sm text-premium-muted mb-6 font-light">Assign specialized generative models to specific roles dynamically.</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {Object.entries(agentModels).map(([agent, currentModel]) => (
+                        <div key={agent} className="flex flex-col gap-2 bg-black/40 p-4 rounded-xl border border-white/5 shadow-inner">
+                            <span className="text-indigo-400 font-bold text-sm capitalize">{agent} Agent</span>
+                            <select 
+                                value={currentModel}
+                                onChange={(e) => handleModelChange(agent, e.target.value)}
+                                className="bg-white/5 text-white text-sm border border-white/10 rounded-lg px-3 py-2 outline-none hover:border-indigo-500/50 transition-colors cursor-pointer"
+                            >
+                                {availableModels.map(m => <option className="bg-gray-900" key={m} value={m}>{m}</option>)}
+                            </select>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
+
         {(flowState === 'READY' || flowState === 'PROCESSING' || flowState === 'DONE') && (
             <div className="glass-panel p-8 rounded-3xl border border-white/10 flex flex-col">
                 <div className="flex items-center justify-between mb-8">
@@ -242,6 +353,15 @@ export const UploadZone = ({ onUploadSuccess, onProjectSelect }: { onUploadSucce
                 </div>
 
                 <div className="flex flex-col gap-4 w-full">
+                    {progressText.includes('Failed.') && jobId && (
+                        <button 
+                            onClick={handleRedrive}
+                            className="w-full py-4 rounded-xl font-bold transition-all bg-red-500/20 border border-red-500/50 hover:bg-red-500/30 text-red-200 flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(239,68,68,0.3)]"
+                        >
+                            Redrive from Failure
+                        </button>
+                    )}
+
                     <button 
                         onClick={handleAnalyze}
                         disabled={flowState === 'PROCESSING' || !videoPath}
@@ -260,81 +380,27 @@ export const UploadZone = ({ onUploadSuccess, onProjectSelect }: { onUploadSucce
                         {flowState === 'PROCESSING' ? 'Processing...' : '2. Slice Video into Buckets (Free)'}
                     </button>
                 </div>
+                
+                {Object.keys(agentStates).length > 0 && (
+                    <div className="mt-8">
+                        <PipelineVisualizer stages={agentStates} />
+                    </div>
+                )}
+
+                {globalFailureLogs && (
+                    <div className="mt-8 bg-black/60 border border-rose-500/30 rounded-2xl p-6">
+                        <h4 className="text-lg font-bold text-rose-400 mb-4 flex items-center gap-2">
+                            Global Pipeline Execution Logs
+                        </h4>
+                        <pre className="text-rose-200/80 font-mono text-xs overflow-auto whitespace-pre-wrap max-h-96 p-4 bg-[#0a0a0a] rounded-xl border border-rose-500/10">
+                            {globalFailureLogs}
+                        </pre>
+                    </div>
+                )}
             </div>
         )}
 
-        {/* Existing Projects List */}
-        {flowState === 'UPLOAD' && projects.length > 0 && (
-            <div className="glass-panel p-6 rounded-3xl border border-white/10">
-                <h3 className="text-xl font-bold text-white mb-4">Historical Projects</h3>
-                <div className="flex flex-col gap-2">
-                    {projects.map((p, i) => (
-                        <div key={i} onClick={() => loadProject(p)} className="p-4 rounded-xl bg-white/5 hover:bg-white/10 cursor-pointer transition-colors border border-white/5 flex justify-between items-center">
-                            <div>
-                                <p className="text-white font-medium">{p.video_name}</p>
-                                <p className="text-xs text-premium-muted">{p.clips} clips extracted</p>
-                            </div>
-                            <Play className="w-5 h-5 text-white/50" />
-                        </div>
-                    ))}
-                </div>
-            </div>
-        )}
 
-        {/* JSON Viewer */}
-        {flowState === 'DONE' && aiData && (
-            <div className="glass-panel p-6 rounded-3xl border border-white/10 flex flex-col">
-                <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                    <FileJson className="w-5 h-5 text-purple-400" /> AI Semantic Layout
-                </h3>
-                <p className="text-sm text-premium-muted mb-4 font-light">The AI successfully generated the following blueprint for the splicer.</p>
-                <div className="bg-black/60 rounded-xl p-4 overflow-auto max-h-96 border border-white/5">
-                    <pre className="text-xs text-purple-200/80 font-mono">
-                        {JSON.stringify(aiData, null, 2)}
-                    </pre>
-                </div>
-            </div>
-        )}
-
-        {/* History Tracker */}
-        {projects.length > 0 && (
-            <div className="glass-panel p-6 rounded-3xl w-full">
-                <h3 className="text-xl font-bold text-white mb-4">History Tracker</h3>
-                <p className="text-sm text-premium-muted mb-4 font-light">Recover a previous session to iterate locally without LLM token costs.</p>
-                <div className="flex flex-col gap-2">
-                    {projects.map((proj, idx) => (
-                        <div 
-                            key={idx}
-                            className="px-4 py-3 rounded-xl bg-white/5 border border-white/5 w-full flex justify-between items-center group"
-                        >
-                            <span className="text-white font-medium">{proj.video_name}</span>
-                            <div className="flex items-center gap-3">
-                                <span className="text-xs px-2 py-1 bg-white/10 rounded-md text-white/60">
-                                    {proj.clips} Clips
-                                </span>
-                                <button
-                                    onClick={async () => {
-                                        try {
-                                            await fetch('http://localhost:8000/api/splice', {
-                                                method: 'POST',
-                                                headers: {'Content-Type': 'application/json'},
-                                                body: JSON.stringify({ video_path: proj.video_path, json_path: proj.json_path })
-                                            });
-                                            alert('Resplicing started! View terminal logs above.');
-                                        } catch (e) {
-                                            alert('Failed to resplice');
-                                        }
-                                    }}
-                                    className="text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md transition-colors flex items-center gap-1"
-                                >
-                                    <Scissors className="w-3 h-3" /> Re-Splice to Factory
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        )}
     </div>
   );
 };
