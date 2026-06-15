@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Sidebar } from './components/layout/Sidebar';
 import { UploadDropzone } from './components/upload/UploadDropzone';
 import { ConfigurationPanel } from './components/upload/ConfigurationPanel';
 import { ExecutionView } from './components/execution/ExecutionView';
+import { DatabaseViewer } from './components/DatabaseViewer';
 
 export const App = () => {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [wizardState, setWizardState] = useState<'UPLOAD' | 'CONFIG'>('UPLOAD');
+  const [wizardState, setWizardState] = useState<'UPLOAD' | 'CONFIG' | 'DB_VIEWER'>('UPLOAD');
   const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
   const [currentVideoName, setCurrentVideoName] = useState<string | null>(null);
 
@@ -43,7 +44,14 @@ export const App = () => {
       {/* Subtle Grain Overlay */}
       <div className="fixed inset-0 opacity-[0.015] pointer-events-none mix-blend-overlay z-0" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E")' }}></div>
 
-      <Sidebar selectedJobId={selectedJobId} onSelectJob={handleSelectJob} />
+      <Sidebar 
+        selectedJobId={selectedJobId} 
+        onSelectJob={handleSelectJob} 
+        onOpenDbViewer={() => {
+          setSelectedJobId(null);
+          setWizardState('DB_VIEWER');
+        }}
+      />
 
       {/* MAIN CANVAS */}
       <main className="flex-1 h-screen overflow-y-auto relative z-10 p-10 flex flex-col custom-scrollbar">
@@ -61,6 +69,13 @@ export const App = () => {
                 onAnalyzeStarted={handleAnalyzeStarted}
                 onCancel={() => setWizardState('UPLOAD')}
               />
+            )}
+            
+            {wizardState === 'DB_VIEWER' && (
+              <DatabaseViewer onClear={() => {
+                setWizardState('UPLOAD');
+                window.location.reload();
+              }} />
             )}
           </div>
         ) : (

@@ -91,17 +91,18 @@ class AIReviewer:
         client = genai.Client()
         
         def get_state(step_name):
-            return resume_state.get(f"chunk_{chunk_idx}_{step_name}")
+            return resume_state.get(chunk_idx, {}).get(step_name)
 
         def save_state(step_name, data):
+            nonlocal did_work
+            did_work = True
             if job_id:
-                state_key = f"chunk_{chunk_idx}_{step_name}"
-                log_stage(job_id, state_key, "completed", str(data))
+                log_stage(job_id, step_name, "completed", str(data), chunk_id=chunk_idx)
                 
                 # Dedicated agent output file
-                agents_dir = os.path.join(os.path.dirname(WORKSPACE_DIR), "outputs", "agents", job_id)
+                agents_dir = os.path.join(os.path.dirname(WORKSPACE_DIR), "outputs", "agents", job_id, str(chunk_idx))
                 os.makedirs(agents_dir, exist_ok=True)
-                agent_file = os.path.join(agents_dir, f"{state_key}.txt")
+                agent_file = os.path.join(agents_dir, f"{step_name}.txt")
                 with open(agent_file, "w") as f:
                     if isinstance(data, str):
                         f.write(data)
@@ -111,6 +112,9 @@ class AIReviewer:
         uploaded_file = None
         proxy_path = None
         context = get_state("observer")
+        did_work = False
+        
+        current_stage = "observer"
         
         # Only upload to Gemini if we actually need to run the Observer
         if not context:
@@ -127,66 +131,66 @@ class AIReviewer:
                 time.sleep(5)
             
         try:
-            # Pre-generate Stage 1 Contexts (Observer)
-            if not context:
-                if job_id: log_stage(job_id, f"chunk_{chunk_idx}_observer", "running", "Generating Pre-Context: Audio Hype Map & OCR...")
-                audio_spikes = detect_audio_spikes(chunk_path, top_n=5)
-                ocr_dumps = read_ocr_from_video(chunk_path, audio_spikes)
-            
             # Stage 1: Observer
             if not context:
-                if job_id: log_stage(job_id, f"chunk_{chunk_idx}_observer", "running", "Observer Agent reading video context...")
+                if job_id: log_stage(job_id, "observer", "running", "Generating Pre-Context: Audio Hype Map & OCR...", chunk_id=chunk_idx)
+                audio_spikes = detect_audio_spikes(chunk_path, top_n=5)
+                ocr_dumps = read_ocr_from_video(chunk_path, audio_spikes)
+                
+                if job_id: log_stage(job_id, "observer", "running", "Observer Agent reading video context...", chunk_id=chunk_idx)
                 context = self.observer.execute(uploaded_file, self.metadata, audio_spikes, ocr_dumps)
                 save_state("observer", context)
             
-            # Pre-generate Stage 2 Contexts (Scriptwriter)
-            web_trends = fetch_regional_trends(self.metadata.get("game_name", "Global"), self.metadata.get("region", "Global"))
-            
+            current_stage = "scriptwriter"
             # Stage 2: Scriptwriter
             scripts = get_state("scriptwriter")
             if not scripts:
-                if job_id: log_stage(job_id, f"chunk_{chunk_idx}_scriptwriter", "running", "Script Writer generating multi-variant templates...")
+                web_trends = fetch_regional_trends(self.metadata.get("game_name", "Global"), self.metadata.get("region", "Global"))
+                if job_id: log_stage(job_id, "scriptwriter", "running", "Script Writer generating multi-variant templates...", chunk_id=chunk_idx)
                 scripts = self.scriptwriter.execute(context, self.metadata, web_trends)
                 save_state("scriptwriter", scripts)
             
-            # Pre-generate Stage 3 Contexts (Director)
-            sfx_library = index_local_sfx()
-            
+            current_stage = "director"
             # Stage 3: Director
             vision = get_state("director")
             if not vision:
-                if job_id: log_stage(job_id, f"chunk_{chunk_idx}_director", "running", "Director injecting magic and vibes...")
+                sfx_library = index_local_sfx()
+                if job_id: log_stage(job_id, "director", "running", "Director injecting magic and vibes...", chunk_id=chunk_idx)
                 vision = self.director.execute(scripts, self.metadata, sfx_library)
                 save_state("director", vision)
             
+            current_stage = "editor"
             # Stage 4: Editor
             breakdown = get_state("editor")
             if not breakdown:
-                if job_id: log_stage(job_id, f"chunk_{chunk_idx}_editor", "running", "Editor translating to FFmpeg technical capabilities...")
+                if job_id: log_stage(job_id, "editor", "running", "Editor translating to FFmpeg technical capabilities...", chunk_id=chunk_idx)
                 breakdown = self.editor.execute(vision, self.metadata)
                 save_state("editor", breakdown)
             
-            # Pre-generate Stage 5 Contexts (Specialist)
-            math_report = validate_editor_math(breakdown)
-            rules_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "docs", "Architecture", "YOUTUBE_ALGORITHM_RULES.md")
-            youtube_rules = ""
-            if os.path.exists(rules_path):
-                with open(rules_path, "r") as f:
-                    youtube_rules = f.read()
-            capabilities = get_capabilities_menu()
-            
+            current_stage = "specialist"
             # Stage 5: Specialist (YouTube Specialist & Final Polish Editor)
             validated_plans = get_state("specialist")
             if not validated_plans:
-                if job_id: log_stage(job_id, f"chunk_{chunk_idx}_specialist", "running", "YouTube Specialist polishing technical plans for maximum algorithm retention...")
+                math_report = validate_editor_math(breakdown)
+                rules_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "docs", "Architecture", "YOUTUBE_ALGORITHM_RULES.md")
+                youtube_rules = ""
+                if os.path.exists(rules_path):
+                    with open(rules_path, "r") as f:
+                        youtube_rules = f.read()
+                capabilities = get_capabilities_menu()
+                
+                if job_id: log_stage(job_id, "specialist", "running", "YouTube Specialist polishing technical plans for maximum algorithm retention...", chunk_id=chunk_idx)
                 validated_plans = self.specialist.execute(breakdown, self.metadata, math_report, youtube_rules, capabilities)
                 save_state("specialist", validated_plans)
             
-            # Stage 6: Builder
-            if job_id: log_stage(job_id, f"chunk_{chunk_idx}_builder", "running", "Builder formatting finalized JSON blueprints...")
-            json_output = self.builder.execute(validated_plans)
+            current_stage = "builder"
+            json_output = get_state("builder")
+            if not json_output:
+                if job_id: log_stage(job_id, "builder", "running", "Builder formatting finalized JSON blueprints...", chunk_id=chunk_idx)
+                json_output = self.builder.execute(validated_plans)
+                save_state("builder", json_output)
             
-            return json_output.get("shorts", [])
+            return json_output.get("shorts", []), did_work
             
         finally:
             try:
@@ -198,17 +202,8 @@ class AIReviewer:
                 job_logger.warning(f"Error during cleanup: {e}")
 
     def review_video(self, job_id: str = None, resume_state: dict = None):
-        job_logger = logging.getLogger(job_id) if job_id else logger
-        
-        # Configure file handler for this job if not already present
-        if job_id and not any(isinstance(h, logging.FileHandler) for h in job_logger.handlers):
-            log_dir = os.path.join(os.path.dirname(WORKSPACE_DIR), "outputs", "logs")
-            os.makedirs(log_dir, exist_ok=True)
-            fh = logging.FileHandler(os.path.join(log_dir, f"{job_id}.log"))
-            fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-            job_logger.addHandler(fh)
-            job_logger.setLevel(logging.INFO)
-            
+        job_logger = logging.getLogger("ai_director")
+
         if resume_state is None:
             resume_state = {}
         try:
@@ -224,34 +219,43 @@ class AIReviewer:
                     chunks = existing
             
             if not chunks:
-                if job_id: log_stage(job_id, "chunking", "running", "Splitting video into chunks (this may take a moment)...")
+                if job_id: log_stage(job_id, "chunking", "running", "Splitting video into chunks (this may take a moment)...", chunk_id=None)
                 chunks = self.split_video_with_overlap(self.video_path, job_id, chunk_duration, overlap)
-                if job_id: log_stage(job_id, "chunking", "completed", f"Generated {len(chunks)} chunks.")
+                if job_id:
+                    from database import update_job_status
+                    update_job_status(job_id, "processing", num_chunks=len(chunks))
+                    log_stage(job_id, "chunking", "completed", f"Generated {len(chunks)} chunks.", chunk_id=None)
             
             all_shorts = []
             start_offset = 0
             
             for idx, chunk in enumerate(chunks):
-                shorts = self.run_multi_agent_pipeline(chunk, job_id, idx, resume_state, job_logger)
-                
-                # Shift timestamps relative to whole VOD
-                for short in shorts:
-                    for phase in short.get("phases", []):
-                        if "start_time" in phase: phase["start_time"] += start_offset
-                        if "end_time" in phase: phase["end_time"] += start_offset
-                            
-                all_shorts.extend(shorts)
-                
-                if idx < len(chunks) - 1:
-                    time.sleep(60)
+                try:
+                    shorts, did_work = self.run_multi_agent_pipeline(chunk, job_id, idx, resume_state, job_logger)
                     
-                start_offset += (chunk_duration - overlap)
+                    # Shift timestamps relative to whole VOD
+                    for short in shorts:
+                        for phase in short.get("phases", []):
+                            if "start_time" in phase: phase["start_time"] += start_offset
+                            if "end_time" in phase: phase["end_time"] += start_offset
+                                
+                    all_shorts.extend(shorts)
+                    
+                    if idx < len(chunks) - 1 and did_work:
+                        job_logger.info(f"Chunk {idx} completed processing. Sleeping 60s to respect API limits before next chunk...")
+                        time.sleep(60)
+                        
+                    start_offset += (chunk_duration - overlap)
+                except Exception as chunk_e:
+                    # We catch here so we can fail the exact chunk_idx if it's bubbling up, though it's safer
+                    # to just raise and let it be handled generally. main.py will mark all running as failed.
+                    raise chunk_e
                 
-            if job_id: log_stage(job_id, "finalizing", "running", "Finalizing N-Phase timeline...")
+            if job_id: log_stage(job_id, "finalizing", "running", "Finalizing N-Phase timeline...", chunk_id=None)
             
             final_timeline = {"shorts": all_shorts}
             
-            if job_id: log_stage(job_id, "finalizing", "completed", str(final_timeline))
+            if job_id: log_stage(job_id, "finalizing", "completed", str(final_timeline), chunk_id=None)
                 
             # Cleanup only on success
             for chunk in chunks:
@@ -262,6 +266,5 @@ class AIReviewer:
             
         except Exception as e:
             job_logger.error(f"Multi-Agent AI Specialist failed: {str(e)}")
-            if job_id:
-                log_stage(job_id, "failed", "failed", f"Failed: {str(e)}")
+            # We don't log a generic failed stage anymore, because main.py will update any running stages to failed.
             raise e

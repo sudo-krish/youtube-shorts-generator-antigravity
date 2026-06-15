@@ -12,3 +12,4 @@ backend/effects/__pycache__/
 *.db
 *.pyc
 backend/workspace
+.env

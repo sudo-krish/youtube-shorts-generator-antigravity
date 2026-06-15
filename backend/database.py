@@ -5,8 +5,7 @@ import json
 import logging
 
 logger = logging.getLogger(__name__)
-
-DB_PATH = os.path.join(os.path.dirname(__file__), "runs.db")
+DB_PATH = os.path.join(os.path.dirname(__file__), "antigravity.db")
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -44,6 +43,7 @@ def init_db():
         logs TEXT,
         start_time REAL,
         end_time REAL,
+        chunk_id INTEGER,
         FOREIGN KEY (job_id) REFERENCES jobs (job_id)
     )
     ''')
@@ -52,7 +52,12 @@ def init_db():
         cursor.execute('ALTER TABLE jobs ADD COLUMN metadata TEXT')
     except sqlite3.OperationalError:
         pass # Column might already exist
-    
+        
+    try:
+        cursor.execute('ALTER TABLE jobs ADD COLUMN num_chunks INTEGER DEFAULT 0')
+    except sqlite3.OperationalError:
+        pass
+        
     conn.commit()
     conn.close()
     logger.info(f"Initialized database at {DB_PATH}")
@@ -86,21 +91,35 @@ def create_job(job_id: str, video_id: str, metadata: dict = None):
     conn.commit()
     conn.close()
 
-def update_job_status(job_id: str, status: str, json_path: str = None):
+def update_job_status(job_id: str, status: str, json_path: str = None, num_chunks: int = None):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    updates = ["status = ?"]
+    params = [status]
+    
     if json_path:
-        cursor.execute('UPDATE jobs SET status = ?, json_path = ? WHERE job_id = ?', (status, json_path, job_id))
-    else:
-        cursor.execute('UPDATE jobs SET status = ? WHERE job_id = ?', (status, job_id))
+        updates.append("json_path = ?")
+        params.append(json_path)
+    if num_chunks is not None:
+        updates.append("num_chunks = ?")
+        params.append(num_chunks)
+        
+    params.append(job_id)
+    
+    cursor.execute(f'UPDATE jobs SET {", ".join(updates)} WHERE job_id = ?', tuple(params))
     conn.commit()
     conn.close()
 
-def log_stage(job_id: str, stage_name: str, status: str, logs: str = None):
+def log_stage(job_id: str, stage_name: str, status: str, logs: str = None, chunk_id: int = None):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
-    cursor.execute('SELECT id, start_time FROM job_stages WHERE job_id = ? AND stage_name = ?', (job_id, stage_name))
+    # Check if stage already exists for this job (and chunk_id)
+    if chunk_id is not None:
+        cursor.execute('SELECT id, start_time FROM job_stages WHERE job_id = ? AND stage_name = ? AND chunk_id = ?', (job_id, stage_name, chunk_id))
+    else:
+        cursor.execute('SELECT id, start_time FROM job_stages WHERE job_id = ? AND stage_name = ? AND chunk_id IS NULL', (job_id, stage_name))
+        
     row = cursor.fetchone()
     
     current_time = time.time()
@@ -113,9 +132,9 @@ def log_stage(job_id: str, stage_name: str, status: str, logs: str = None):
     else:
         end_time = current_time if status in ["completed", "failed"] else None
         cursor.execute('''
-        INSERT INTO job_stages (job_id, stage_name, status, logs, start_time, end_time)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ''', (job_id, stage_name, status, logs, current_time, end_time))
+        INSERT INTO job_stages (job_id, stage_name, status, logs, start_time, end_time, chunk_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (job_id, stage_name, status, logs, current_time, end_time, chunk_id))
         
     conn.commit()
     conn.close()
@@ -138,13 +157,17 @@ def get_job_stages(job_id: str):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute('SELECT stage_name, status, logs, start_time, end_time FROM job_stages WHERE job_id = ? ORDER BY start_time ASC', (job_id,))
+    cursor.execute('SELECT stage_name, chunk_id, status, logs, start_time, end_time FROM job_stages WHERE job_id = ? ORDER BY start_time ASC', (job_id,))
     rows = cursor.fetchall()
     conn.close()
     
     stages = {}
     for row in rows:
-        stages[row["stage_name"]] = {
+        key = row["stage_name"]
+        if row["chunk_id"] is not None:
+            key = f"chunk_{row['chunk_id']}_{row['stage_name']}"
+            
+        stages[key] = {
             "status": row["status"],
             "logs": row["logs"],
             "start_time": row["start_time"],
@@ -158,11 +181,63 @@ def get_job(job_id: str):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute('''
-    SELECT j.job_id, j.status, j.created_at, v.video_name, v.video_path, j.json_path
+    SELECT j.job_id, j.status, j.created_at, v.video_name, v.video_path, j.json_path, j.metadata, j.num_chunks
     FROM jobs j
     JOIN videos v ON j.video_id = v.video_id
     WHERE j.job_id = ?
     ''', (job_id,))
     row = cursor.fetchone()
     conn.close()
-    return dict(row) if row else None
+    
+    if row:
+        job_dict = dict(row)
+        try:
+            job_dict["metadata"] = json.loads(job_dict.get("metadata") or "{}")
+        except Exception:
+            job_dict["metadata"] = {}
+        return job_dict
+    return None
+
+def get_completed_stages(job_id: str):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute('SELECT stage_name, chunk_id FROM job_stages WHERE job_id = ? AND status = "completed" ORDER BY end_time ASC', (job_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [{"stage_name": row["stage_name"], "chunk_id": row["chunk_id"]} for row in rows]
+
+def get_database_dump():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT * FROM videos')
+    videos = [dict(r) for r in cursor.fetchall()]
+    
+    cursor.execute('SELECT * FROM jobs')
+    jobs = [dict(r) for r in cursor.fetchall()]
+    for j in jobs:
+        try:
+            j["metadata"] = json.loads(j.get("metadata") or "{}")
+        except Exception:
+            j["metadata"] = {}
+            
+    cursor.execute('SELECT * FROM job_stages')
+    stages = [dict(r) for r in cursor.fetchall()]
+    
+    conn.close()
+    return {
+        "videos": videos,
+        "jobs": jobs,
+        "job_stages": stages
+    }
+
+def clear_database():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM job_stages')
+    cursor.execute('DELETE FROM jobs')
+    cursor.execute('DELETE FROM videos')
+    conn.commit()
+    conn.close()

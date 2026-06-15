@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { Activity, Play, History, Sparkles } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Play, History, Sparkles, Database } from 'lucide-react';
+import { api } from '../../api';
 
 interface SidebarProps {
   selectedJobId: string | null;
   onSelectJob: (jobId: string | null) => void;
+  onOpenDbViewer: () => void;
 }
 
-export const Sidebar = ({ selectedJobId, onSelectJob }: SidebarProps) => {
+export const Sidebar = ({ selectedJobId, onSelectJob, onOpenDbViewer }: SidebarProps) => {
   const [jobs, setJobs] = useState<any[]>([]);
 
   useEffect(() => {
@@ -15,15 +17,15 @@ export const Sidebar = ({ selectedJobId, onSelectJob }: SidebarProps) => {
     return () => clearInterval(interval);
   }, []);
 
-  const fetchJobs = () => {
-    fetch('http://localhost:8000/api/jobs')
-      .then(res => res.json())
-      .then(data => {
-        if (data.status === 'success') {
-          setJobs(data.jobs);
-        }
-      })
-      .catch(console.error);
+  const fetchJobs = async () => {
+    try {
+      const data = await api.getJobs();
+      if (data.status === 'success') {
+        setJobs(data.jobs);
+      }
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   return (
@@ -57,6 +59,21 @@ export const Sidebar = ({ selectedJobId, onSelectJob }: SidebarProps) => {
             <div>
               <p className={`text-sm font-bold ${!selectedJobId ? 'text-white' : 'text-white/60'}`}>New Project</p>
               <p className="text-xs text-white/40 mt-0.5">Start fresh</p>
+            </div>
+          </div>
+        </button>
+
+        <button 
+          onClick={onOpenDbViewer}
+          className="w-full text-left p-4 rounded-2xl transition-all duration-300 border relative overflow-hidden bg-transparent border-transparent hover:bg-white/5 mt-2"
+        >
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center transition-colors bg-white/5">
+              <Database className="w-4 h-4 text-white/40" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-white/60">Database</p>
+              <p className="text-xs text-white/40 mt-0.5">View tables</p>
             </div>
           </div>
         </button>

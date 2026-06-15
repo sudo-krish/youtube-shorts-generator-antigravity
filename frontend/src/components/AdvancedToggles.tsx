@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { api } from '../api';
 
 export const AdvancedToggles = () => {
   const [bRoll, setBRoll] = useState(true);
@@ -10,9 +11,8 @@ export const AdvancedToggles = () => {
   const downloadSFX = async () => {
       setIsDownloadingSFX(true);
       try {
-          const res = await fetch('http://localhost:8000/api/sfx/install', { method: 'POST' });
-          const data = await res.json();
-          if (data.status === 'success') {
+          const res = await api.installSfx();
+          if (res.status === 'success') {
               alert('SFX Pack successfully installed!');
           }
       } catch (e) {

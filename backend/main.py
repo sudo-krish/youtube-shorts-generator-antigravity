@@ -34,7 +34,8 @@ import uuid
 from ai_director.reviewer import AIReviewer
 from generator.cutter import generate_files_from_json
 from pipeline.engine import execute_pipeline
-from database import init_db, create_job, update_job_status, get_all_jobs, get_job_stages, get_job, create_video, get_video
+from database import init_db, create_job, update_job_status, get_all_jobs, get_job_stages, get_job, create_video, get_video, get_completed_stages, get_database_dump, clear_database
+import shutil
 
 USAGE_FILE = os.path.join(OUTPUTS_DIR, "usage_tracking.json")
 
@@ -48,56 +49,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- WebSocket Log Streaming ---
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: List[WebSocket] = []
-
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-
-    def disconnect(self, websocket: WebSocket):
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-
-    async def broadcast(self, message: str):
-        for connection in self.active_connections:
-            try:
-                await connection.send_text(message)
-            except Exception:
-                pass
-
-manager = ConnectionManager()
-main_loop = None
-
-class WebSocketLogHandler(logging.Handler):
-    def emit(self, record):
-        msg = self.format(record)
-        if main_loop and main_loop.is_running():
-            try:
-                asyncio.run_coroutine_threadsafe(manager.broadcast(msg), main_loop)
-            except Exception:
-                pass
-
-ws_handler = WebSocketLogHandler()
-ws_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-logging.getLogger().addHandler(ws_handler)
-
-@app.on_event("startup")
-async def startup_event():
-    global main_loop
-    main_loop = asyncio.get_running_loop()
-    init_db()
-
-@app.websocket("/api/logs")
-async def websocket_logs(websocket: WebSocket):
-    await manager.connect(websocket)
+@app.websocket("/api/jobs/{job_id}/logs/stream")
+async def websocket_logs(websocket: WebSocket, job_id: str):
+    await websocket.accept()
+    log_path = os.path.join(OUTPUTS_DIR, "logs", f"{job_id}.log")
+    
     try:
-        while True:
-            await websocket.receive_text()
+        # Wait for file to exist
+        while not os.path.exists(log_path):
+            await asyncio.sleep(0.5)
+            
+        with open(log_path, 'r') as f:
+            # Send everything available initially
+            initial_content = f.read()
+            if initial_content:
+                await websocket.send_text(initial_content)
+                
+            # Tail the file asynchronously
+            while True:
+                line = f.read()
+                if not line:
+                    await asyncio.sleep(0.5)
+                    continue
+                await websocket.send_text(line)
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        pass
+    except Exception as e:
+        logger.error(f"WebSocket error for job {job_id}: {e}")
 # -------------------------------
 
 @app.post("/api/upload")
@@ -121,12 +99,15 @@ class AnalyzeRequest(BaseModel):
     metadata: dict = {}
 
 def run_orchestrator_job(job_id: str, video_path: str, metadata: dict, resume_state: dict = None):
-    job_logger = logging.getLogger(job_id)
-    if not any(isinstance(h, logging.FileHandler) for h in job_logger.handlers):
-        log_dir = os.path.join(OUTPUTS_DIR, "logs")
-        os.makedirs(log_dir, exist_ok=True)
-        fh = logging.FileHandler(os.path.join(log_dir, f"{job_id}.log"))
-        fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    job_logger = logging.getLogger("ai_director")
+    log_dir = os.path.join(OUTPUTS_DIR, "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, f"{job_id}.log")
+    
+    # Attach handler if not present for this job
+    if not any(isinstance(h, logging.FileHandler) and h.baseFilename == os.path.abspath(log_path) for h in job_logger.handlers):
+        fh = logging.FileHandler(log_path)
+        fh.setFormatter(logging.Formatter('%(asctime)s | [%(levelname)s] | %(message)s'))
         job_logger.addHandler(fh)
         job_logger.setLevel(logging.INFO)
         
@@ -149,6 +130,15 @@ def run_orchestrator_job(job_id: str, video_path: str, metadata: dict, resume_st
         traceback.print_exc()
         job_logger.error(f"Error in background task: {e}")
         update_job_status(job_id, f"failed: {str(e)}")
+        # Also mark any stuck running stages as failed
+        import sqlite3
+        from database import DB_PATH
+        import time
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE job_stages SET status = 'failed', end_time = ? WHERE job_id = ? AND status IN ('running', 'processing')", (time.time(), job_id))
+        conn.commit()
+        conn.close()
 
 from ai_director.config_manager import get_config, set_config
 
@@ -202,26 +192,45 @@ async def analyze_video(request: AnalyzeRequest, background_tasks: BackgroundTas
 
 @app.post("/api/redrive/{job_id}")
 async def redrive_job(job_id: str, background_tasks: BackgroundTasks):
-    logger.info(f"Redriving job {job_id}...")
-    
     job = get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+        
+    # Set all stuck running stages to failed before redriving
+    import sqlite3
+    import time
+    from database import DB_PATH
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE job_stages SET status = 'failed', end_time = ? WHERE job_id = ? AND status IN ('running', 'processing')", (time.time(), job_id))
+    conn.commit()
+    conn.close()
     
     completed_stages = get_completed_stages(job_id)
     agents_dir = os.path.join(OUTPUTS_DIR, "agents", job_id)
-    resume_state = {}
+    os.makedirs(agents_dir, exist_ok=True)
     
-    if os.path.exists(agents_dir):
-        for stage_name in completed_stages:
-            file_path = os.path.join(agents_dir, f"{stage_name}.txt")
-            if os.path.exists(file_path):
-                with open(file_path, "r") as f:
-                    try:
-                        resume_state[stage_name] = json.load(f)
-                    except Exception:
-                        f.seek(0)
-                        resume_state[stage_name] = f.read()
+    # We reconstruct a resume_state dictionary from the DB
+    resume_state = {}
+    for stage in completed_stages:
+        chunk_id = stage['chunk_id']
+        stage_name = stage['stage_name']
+        
+        if chunk_id is None:
+            continue
+            
+        if chunk_id not in resume_state:
+            resume_state[chunk_id] = {}
+            
+        file_path = os.path.join(agents_dir, str(chunk_id), f"{stage_name}.txt")
+        if os.path.exists(file_path):
+            with open(file_path, "r") as f:
+                try:
+                    import json
+                    resume_state[chunk_id][stage_name] = json.load(f)
+                except Exception:
+                    f.seek(0)
+                    resume_state[chunk_id][stage_name] = f.read()
     
     update_job_status(job_id, "processing")
     
@@ -234,6 +243,26 @@ async def redrive_job(job_id: str, background_tasks: BackgroundTasks):
     )
     
     return {"job_id": job_id, "status": "processing", "message": "Redrive initiated"}
+
+@app.post("/api/jobs/{job_id}/cancel")
+async def cancel_job(job_id: str):
+    logger.info(f"User requested cancellation of job {job_id}")
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+        
+    update_job_status(job_id, "failed: cancelled by user")
+    
+    import sqlite3
+    import time
+    from database import DB_PATH
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE job_stages SET status = 'failed', end_time = ? WHERE job_id = ? AND status IN ('running', 'processing')", (time.time(), job_id))
+    conn.commit()
+    conn.close()
+    
+    return {"status": "success", "message": "Job marked as failed."}
 
 @app.get("/api/jobs")
 async def list_jobs_endpoint():
@@ -254,6 +283,7 @@ async def get_status(job_id: str):
         "status": job["status"],
         "json_path": job["json_path"],
         "video_path": job["video_path"],
+        "num_chunks": job.get("num_chunks", 0),
         "agent_states": stages
     }
 
@@ -304,6 +334,36 @@ async def list_projects():
                     "clips": sum(len(short.get("phases", [])) for short in data.get("shorts", []))
                 })
     return {"status": "success", "projects": projects}
+
+@app.get("/api/db/dump")
+async def db_dump():
+    return get_database_dump()
+
+@app.delete("/api/db/clear")
+async def db_clear():
+    logger.warning("Clearing database and workspace files!")
+    clear_database()
+    
+    # Safely clear outputs/agents
+    agents_dir = os.path.join(OUTPUTS_DIR, "agents")
+    if os.path.exists(agents_dir):
+        for item in os.listdir(agents_dir):
+            item_path = os.path.join(agents_dir, item)
+            if os.path.isdir(item_path):
+                shutil.rmtree(item_path)
+                
+    # Safely clear workspace files (except sfx folder)
+    if os.path.exists(WORKSPACE_DIR):
+        for item in os.listdir(WORKSPACE_DIR):
+            if item == "sfx":
+                continue
+            item_path = os.path.join(WORKSPACE_DIR, item)
+            if os.path.isfile(item_path):
+                os.remove(item_path)
+            elif os.path.isdir(item_path):
+                shutil.rmtree(item_path)
+                
+    return {"status": "success", "message": "Database and temporary files cleared"}
 
 @app.post("/api/generate-short")
 async def generate_short(background_tasks: BackgroundTasks):

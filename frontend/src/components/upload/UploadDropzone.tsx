@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Upload, Video, Loader2 } from 'lucide-react';
+import { api } from '../../api';
 
 interface UploadDropzoneProps {
   onUploadComplete: (videoId: string, videoName: string) => void;
@@ -17,15 +18,9 @@ export const UploadDropzone = ({ onUploadComplete }: UploadDropzoneProps) => {
     }
     
     setIsUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    
     try {
-      const response = await fetch('http://localhost:8000/api/upload', {
-        method: 'POST',
-        body: formData
-      });
-      const result = await response.json();
+      const result = await api.uploadVideo(file);
+      
       if (result.status === 'success') {
         onUploadComplete(result.video_id, file.name);
       } else {

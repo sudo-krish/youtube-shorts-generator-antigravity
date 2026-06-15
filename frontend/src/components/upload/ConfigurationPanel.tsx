@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Gamepad2, Globe, Target, ArrowRight, Video, CheckCircle2, Loader2, Info } from 'lucide-react';
+import { api } from '../../api';
 
 interface ConfigurationPanelProps {
   videoId: string;
@@ -18,15 +19,12 @@ export const ConfigurationPanel = ({ videoId, videoName, onAnalyzeStarted, onCan
   const handleStart = async () => {
     setIsInitializing(true);
     try {
-      const response = await fetch('http://localhost:8000/api/analyze', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ 
-          video_id: videoId,
-          metadata: { game_name: gameName, game_type: gameType, player_skill: playerSkill, region }
-        })
+      const data = await api.analyzeVideo(videoId, { 
+        game: gameName, 
+        game_type: gameType, 
+        player_skill: playerSkill, 
+        region 
       });
-      const data = await response.json();
       if (data.status === 'processing' && data.job_id) {
         onAnalyzeStarted(data.job_id);
       } else {
