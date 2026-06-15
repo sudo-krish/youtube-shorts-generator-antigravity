@@ -12,6 +12,7 @@ Your job is to identify highly engaging moments and write MULTIPLE retention-cen
 CRITICAL INSTRUCTIONS ON TONE AND STYLE:
 - ON-SCREEN STORY CAPTIONS: For every phase, you MUST write a short, relatable, first-person story caption that will appear on the video. Write in a casual, Gen-Z gamer voice. (e.g., "I was pushing for entry and this damn Jett killed me...", "Bro really thought he could flank me 💀", "I thought this round was completely over...").
 - DO NOT use cheesy, exclamation-heavy hype language (e.g., "Can he clutch this?!", "Watch this insane play!", "0 IQ!").
+- NO LOADING SCREENS AS HOOKS: NEVER use a menu, loading screen, or buy phase as the Hook phase. The Hook MUST be an exciting, in-game gameplay moment, failure, or intense scenario.
 - Your "Narrative" description should be nuanced and documentary-style, but your "Caption" must be highly relatable first-person storytelling.
 
 === GLOBAL METADATA ===

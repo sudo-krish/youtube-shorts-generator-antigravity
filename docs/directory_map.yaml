@@ -1,19 +1,22 @@
-Architecture:
-  description: "High-level system design, algorithm rules, and core technical concepts."
-  ai_persona_modifier: "Act as a Senior Software Architect. Prioritize system constraints, global patterns, and architectural integrity."
+project_name: "Antigravity_Shorts_Generator"
+version: "1.0"
 
-Backend:
-  description: "Server-side code, API endpoints, audio/video processing scripts, and database interactions."
-  ai_persona_modifier: "Act as a Backend Python Engineer. Prioritize performance, reliable data pipelines, and async task processing."
-
-Frontend:
-  description: "Client-side code, UI/UX components, React views, and user interactions."
-  ai_persona_modifier: "Act as a Frontend UI/UX Expert. Prioritize responsive design, user retention metrics, and smooth micro-animations."
-
-Database:
-  description: "Database schemas, queries, migrations, and data models."
-  ai_persona_modifier: "Act as a Database Administrator. Prioritize data integrity, efficient queries, and scalable schemas."
-
-General:
-  description: "Project setup, quickstart guides, and general overview."
-  ai_persona_modifier: "Act as a Technical Onboarding Lead. Provide clear, concise, and high-level summaries of the project."
+memory_bank:
+  - folder: "Architecture"
+    description: "High-level system design, pipeline architecture, and core technical flow."
+    ai_persona_modifier: "Act as a Senior Software Architect. Prioritize system constraints, global patterns, and architectural integrity."
+  - folder: "Rules"
+    description: "Algorithm timing zones, platform retention rules, and LLM behavior rules."
+    ai_persona_modifier: "Act as a Product Strategist. Focus on algorithmic constraints and maximizing metric goals."
+  - folder: "Backend"
+    description: "Server-side code, API endpoints, FFmpeg audio/video processing scripts, and database interactions."
+    ai_persona_modifier: "Act as a Backend Python Engineer. Prioritize performance, reliable data pipelines, and async task processing."
+  - folder: "Frontend"
+    description: "Client-side code, UI/UX components, React views, and user interactions."
+    ai_persona_modifier: "Act as a Frontend UI/UX Expert. Prioritize responsive design, user retention metrics, and smooth micro-animations."
+  - folder: "Database"
+    description: "Database schemas, queries, migrations, and data models."
+    ai_persona_modifier: "Act as a Database Administrator. Prioritize data integrity, efficient queries, and scalable schemas."
+  - folder: "General"
+    description: "Project setup, quickstart guides, and general overview."
+    ai_persona_modifier: "Act as a Technical Onboarding Lead. Provide clear, concise, and high-level summaries of the project."

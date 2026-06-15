@@ -24,16 +24,23 @@ INSTRUCTIONS:
 4. Punch-ins: Read the Director's framing instructions (e.g., zooms, crops). Define an array of `visual_punch_in_timestamps` (float seconds RELATIVE to the start of the Phase) for when the camera should rapidly zoom in.
 5. Transitions: Assign a `transition_in` string (from the XFADE transitions menu) for every phase EXCEPT the very first phase.
 6. Text Overlays: Pass through the EXACT Text Overlays prescribed by the Director. If the Director said "No text needed", leave it blank. DO NOT INVENT CHEESY TITLES.
-7. DO NOT OUTPUT JSON. Output a strict technical breakdown text.
+7. Spatial Focus: The Director will provide a `Focus: [start_x, end_x]`. You must output this exactly as `start_focus_x: start_x` and `end_focus_x: end_x` in your breakdown.
+8. Background Audio: You must include the `BACKGROUND AUDIO:` string exactly as the Director specified it.
+9. DO NOT OUTPUT JSON. Output a strict technical breakdown text.
 
 Example Editor Breakdown:
 VARIANT: The 1v3 Site Anchor
+BACKGROUND AUDIO: hype_trap_beat.mp3
 PHASES:
 - Phase 1 (Setup): 15.0 - 20.0 (Duration: 5.0)
+  Start Focus X: 960
+  End Focus X: 960
   Text: ""
   Effects: [{{'effect_name': 'vhs_overlay', 'relative_start_time': 0.0, 'duration': 5.0}}]
   Punch-ins: [2.5]
 - Phase 2 (Struggle): 20.0 - 25.5 (Duration: 5.5)
+  Start Focus X: 960
+  End Focus X: 1200
   Transition In: "pixelize"
   Text: "1 HP!"
   Effects: [{{'effect_name': 'screen_shake', 'relative_start_time': 0.0, 'duration': 5.5}}, {{'effect_name': 'desaturate', 'relative_start_time': 0.0, 'duration': 5.5}}]

@@ -48,6 +48,20 @@ def init_db():
     )
     ''')
     
+    # Create job_renders table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS job_renders (
+        id TEXT PRIMARY KEY,
+        job_id TEXT,
+        variant_id TEXT,
+        status TEXT,
+        error_logs TEXT,
+        created_at REAL,
+        updated_at REAL,
+        FOREIGN KEY (job_id) REFERENCES jobs (job_id)
+    )
+    ''')
+    
     try:
         cursor.execute('ALTER TABLE jobs ADD COLUMN metadata TEXT')
     except sqlite3.OperationalError:
@@ -181,7 +195,7 @@ def get_job(job_id: str):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute('''
-    SELECT j.job_id, j.status, j.created_at, v.video_name, v.video_path, j.json_path, j.metadata, j.num_chunks
+    SELECT j.job_id, j.status, j.created_at, v.video_name, v.video_path, j.json_path, j.metadata, j.num_chunks, j.video_id
     FROM jobs j
     JOIN videos v ON j.video_id = v.video_id
     WHERE j.job_id = ?
@@ -202,10 +216,39 @@ def get_completed_stages(job_id: str):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute('SELECT stage_name, chunk_id FROM job_stages WHERE job_id = ? AND status = "completed" ORDER BY end_time ASC', (job_id,))
+    cursor.execute('SELECT chunk_id, stage_name, logs FROM job_stages WHERE job_id = ? AND status = "completed"', (job_id,))
     rows = cursor.fetchall()
     conn.close()
-    return [{"stage_name": row["stage_name"], "chunk_id": row["chunk_id"]} for row in rows]
+    return [dict(row) for row in rows]
+
+def queue_render_task(task_id: str, job_id: str, variant_id: str):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    now = time.time()
+    cursor.execute('''
+    INSERT OR IGNORE INTO job_renders (id, job_id, variant_id, status, error_logs, created_at, updated_at)
+    VALUES (?, ?, ?, 'queued', '', ?, ?)
+    ''', (task_id, job_id, variant_id, now, now))
+    conn.commit()
+    conn.close()
+
+def update_render_status(task_id: str, status: str, error_logs: str = ""):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+    UPDATE job_renders SET status = ?, error_logs = ?, updated_at = ? WHERE id = ?
+    ''', (status, error_logs, time.time(), task_id))
+    conn.commit()
+    conn.close()
+
+def get_render_statuses(job_id: str):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute('SELECT variant_id, status, error_logs FROM job_renders WHERE job_id = ?', (job_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
 
 def get_database_dump():
     conn = sqlite3.connect(DB_PATH)

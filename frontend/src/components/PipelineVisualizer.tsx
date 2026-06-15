@@ -9,6 +9,8 @@ interface StageData {
 
 interface PipelineVisualizerProps {
     stages: Record<string, StageData>;
+    selectedNodeId?: string | null;
+    onNodeClick?: (nodeId: string) => void;
 }
 
 const AGENT_STEPS = [
@@ -20,7 +22,7 @@ const AGENT_STEPS = [
     { id: 'builder', label: 'Builder', icon: Settings },
 ];
 
-export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ stages }) => {
+export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ stages, selectedNodeId, onNodeClick }) => {
     
     // Determine number of chunks, or if it's a legacy non-chunked job
     const chunkIndices = Object.keys(stages || {})
@@ -44,7 +46,7 @@ export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ stages }
         return (stages && stages[key]) ? stages[key].status : 'pending';
     };
     
-    const renderNode = (label: string, Icon: any, status: string, tooltipText: string) => {
+    const renderNode = (label: string, Icon: any, status: string, tooltipText: string, nodeId: string) => {
         let statusColor = "text-white/20 border-white/10 bg-white/5";
         let iconColor = "text-white/30";
         let StatusIcon = CircleDashed;
@@ -65,15 +67,21 @@ export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ stages }
             animation = "animate-pulse";
         }
         
+        const isSelected = selectedNodeId === nodeId;
+        
         return (
-            <div className="relative flex flex-col items-center gap-2 group transition-all transform hover:scale-105" title={tooltipText}>
-                <div className={`w-12 h-12 md:w-14 md:h-14 rounded-2xl border-2 flex items-center justify-center transition-all duration-300 ${statusColor} ${animation}`}>
+            <div 
+                className={`relative flex flex-col items-center gap-2 group transition-all transform hover:scale-105 cursor-pointer ${isSelected ? 'scale-110' : ''}`}
+                title={tooltipText}
+                onClick={() => onNodeClick && onNodeClick(nodeId)}
+            >
+                <div className={`w-12 h-12 md:w-14 md:h-14 rounded-2xl border-2 flex items-center justify-center transition-all duration-300 ${statusColor} ${animation} ${isSelected ? 'ring-2 ring-white/50' : ''}`}>
                     <Icon className={`w-6 h-6 md:w-6 md:h-6 ${iconColor}`} />
                 </div>
                 <div className="absolute -top-1 -right-1 bg-black rounded-full">
                     <StatusIcon className={`w-4 h-4 ${(status === 'running' || status === 'processing') ? 'animate-spin text-blue-400' : iconColor}`} />
                 </div>
-                <span className="text-[11px] font-medium tracking-wide whitespace-nowrap text-white/50 group-hover:text-white/80 transition-colors">
+                <span className={`text-[11px] font-medium tracking-wide whitespace-nowrap transition-colors ${isSelected ? 'text-white' : 'text-white/50 group-hover:text-white/80'}`}>
                     {label}
                 </span>
             </div>
@@ -91,7 +99,7 @@ export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ stages }
                 <div className="flex items-center min-w-max px-4 mx-auto pb-4">
                     
                     {/* Entry Node */}
-                    {renderNode('Chunking', Film, (stages && stages['chunking']) ? stages['chunking'].status : 'pending', 'chunking')}
+                    {renderNode('Chunking', Film, (stages && stages['chunking']) ? stages['chunking'].status : 'pending', 'chunking', 'chunking')}
                     
                     <div className="w-10 flex items-center justify-center">
                         <ArrowRight className="w-5 h-5 text-white/10" />
@@ -109,7 +117,7 @@ export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ stages }
                                     </div>
                                     {AGENT_STEPS.map((step, idx) => (
                                         <React.Fragment key={`${chunkIdx}-${step.id}`}>
-                                            {renderNode(step.label, step.icon, getStatusForNode(chunkIdx, step.id), hasLegacyStages ? step.id : `chunk_${chunkIdx}_${step.id}`)}
+                                            {renderNode(step.label, step.icon, getStatusForNode(chunkIdx, step.id), hasLegacyStages ? step.id : `chunk_${chunkIdx}_${step.id}`, hasLegacyStages ? step.id : `chunk_${chunkIdx}_${step.id}`)}
                                             {idx < AGENT_STEPS.length - 1 && (
                                                 <div className="w-6 flex items-center justify-center">
                                                     <ArrowRight className="w-4 h-4 text-white/10" />
@@ -131,7 +139,7 @@ export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ stages }
                     </div>
                     
                     {/* Exit Node */}
-                    {renderNode('Finalizing', CheckCircle2, (stages && stages['finalizing']) ? stages['finalizing'].status : 'pending', 'finalizing')}
+                    {renderNode('Finalizing', CheckCircle2, (stages && stages['finalizing']) ? stages['finalizing'].status : 'pending', 'finalizing', 'finalizing')}
                     
                 </div>
             </div>

@@ -16,7 +16,9 @@ from .tools.audio_hype import detect_audio_spikes
 from .tools.ocr_reader import read_ocr_from_video
 from .tools.web_scraper import fetch_regional_trends
 from .tools.sfx_indexer import index_local_sfx
+from .tools.audio_indexer import index_local_music
 from .tools.math_validator import validate_editor_math
+from .tools.tracker import track_subject
 from pipeline.capabilities.effects.registry import get_capabilities_menu
 from database import log_stage
 
@@ -133,12 +135,13 @@ class AIReviewer:
         try:
             # Stage 1: Observer
             if not context:
-                if job_id: log_stage(job_id, "observer", "running", "Generating Pre-Context: Audio Hype Map & OCR...", chunk_id=chunk_idx)
+                if job_id: log_stage(job_id, "observer", "running", "Generating Pre-Context: AI Tracking, Audio Hype Map & OCR...", chunk_id=chunk_idx)
                 audio_spikes = detect_audio_spikes(chunk_path, top_n=5)
                 ocr_dumps = read_ocr_from_video(chunk_path, audio_spikes)
+                tracking_data = track_subject(chunk_path, fps=1)
                 
                 if job_id: log_stage(job_id, "observer", "running", "Observer Agent reading video context...", chunk_id=chunk_idx)
-                context = self.observer.execute(uploaded_file, self.metadata, audio_spikes, ocr_dumps)
+                context = self.observer.execute(uploaded_file, self.metadata, audio_spikes, ocr_dumps, tracking_data)
                 save_state("observer", context)
             
             current_stage = "scriptwriter"
@@ -155,8 +158,9 @@ class AIReviewer:
             vision = get_state("director")
             if not vision:
                 sfx_library = index_local_sfx()
+                music_library = index_local_music()
                 if job_id: log_stage(job_id, "director", "running", "Director injecting magic and vibes...", chunk_id=chunk_idx)
-                vision = self.director.execute(scripts, self.metadata, sfx_library)
+                vision = self.director.execute(scripts, self.metadata, sfx_library, music_library)
                 save_state("director", vision)
             
             current_stage = "editor"
@@ -172,7 +176,7 @@ class AIReviewer:
             validated_plans = get_state("specialist")
             if not validated_plans:
                 math_report = validate_editor_math(breakdown)
-                rules_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "docs", "Architecture", "YOUTUBE_ALGORITHM_RULES.md")
+                rules_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "docs", "Rules", "YOUTUBE_ALGORITHM_RULES.md")
                 youtube_rules = ""
                 if os.path.exists(rules_path):
                     with open(rules_path, "r") as f:

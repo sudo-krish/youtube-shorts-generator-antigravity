@@ -1,8 +1,9 @@
 import os
 import json
 import asyncio
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, UploadFile, Request, File, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List
 import sys
@@ -40,6 +41,7 @@ import shutil
 USAGE_FILE = os.path.join(OUTPUTS_DIR, "usage_tracking.json")
 
 app = FastAPI(title="Hyper Shorts Factory API")
+app.mount("/workspace", StaticFiles(directory=WORKSPACE_DIR), name="workspace")
 
 app.add_middleware(
     CORSMiddleware,
@@ -272,6 +274,34 @@ async def list_jobs_endpoint():
 async def list_job_stages_endpoint(job_id: str):
     return {"status": "success", "stages": get_job_stages(job_id)}
 
+@app.get("/api/jobs/{job_id}/nodes/{node_id}")
+async def get_node_output(job_id: str, node_id: str):
+    # node_id format is typically "chunk_{chunk_id}_{stage_name}" or just "{stage_name}"
+    chunk_id = None
+    stage_name = node_id
+    
+    if node_id.startswith("chunk_"):
+        parts = node_id.split("_")
+        if len(parts) >= 3:
+            chunk_id = parts[1]
+            stage_name = "_".join(parts[2:])
+            
+    # Load from file system since outputs are too large for the sqlite database
+    if chunk_id:
+        file_path = os.path.join(OUTPUTS_DIR, "agents", job_id, str(chunk_id), f"{stage_name}.txt")
+    else:
+        file_path = os.path.join(OUTPUTS_DIR, "agents", job_id, f"{stage_name}.txt")
+        
+    if not os.path.exists(file_path):
+        return {"status": "success", "output": "Output not generated yet."}
+        
+    with open(file_path, "r") as f:
+        content = f.read()
+        try:
+            return {"status": "success", "output": json.loads(content)}
+        except Exception:
+            return {"status": "success", "output": content}
+
 @app.get("/api/jobs/{job_id}/status")
 async def get_status(job_id: str):
     job = get_job(job_id)
@@ -422,6 +452,109 @@ async def generate_short(background_tasks: BackgroundTasks):
     background_tasks.add_task(execute_pipeline, clips_data, out_file)
     
     return {"status": "success", "message": "Rendering started", "video_id": f"{video_id}_{variant_id}"}
+
+render_queue = asyncio.Queue()
+
+async def render_worker():
+    while True:
+        try:
+            task = await render_queue.get()
+            job_id = task['job_id']
+            variant_id = task['variant_id']
+            task_id = task['task_id']
+            job = get_job(job_id)
+            if not job:
+                update_render_status(task_id, 'failed', 'Job not found')
+                render_queue.task_done()
+                continue
+                
+            segments_path = job["json_path"]
+            with open(segments_path, 'r') as f:
+                data = json.load(f)
+                
+            shorts = data.get("shorts", [])
+            short = next((s for s in shorts if str(s.get("variant_id")) == variant_id), None)
+            
+            if not short:
+                update_render_status(task_id, 'failed', 'Variant not found')
+                render_queue.task_done()
+                continue
+                
+            update_render_status(task_id, 'rendering')
+            
+            # Step 1: Cut the clips synchronously
+            filtered_data = data.copy()
+            filtered_data["shorts"] = [short]
+            
+            try:
+                generate_files_from_json(job["video_path"], filtered_data)
+            except Exception as e:
+                logger.error(f"Error in generate_files_from_json: {e}")
+                update_render_status(task_id, 'failed', str(e))
+                render_queue.task_done()
+                continue
+            
+            # Step 2: Pipeline Editor
+            vid = job["video_id"]
+            v_id = short.get("variant_id", "default")
+            
+            variant_clips = []
+            for idx, phase in enumerate(short.get("phases", [])):
+                phase_id = phase.get('phase_id', f"phase_{idx}")
+                clip_path = os.path.join(OUTPUTS_DIR, vid, f"{vid}_{v_id}_{idx}_{phase_id}.mp4")
+                if os.path.exists(clip_path):
+                    variant_clips.append(clip_path)
+                    
+            if len(variant_clips) == len(short.get("phases", [])):
+                clips_data = {"clips": variant_clips}
+                out_file = os.path.join(OUTPUTS_DIR, f"viral_short_{job_id}_{variant_id}.mp4")
+                try:
+                    execute_pipeline(clips_data, out_file)
+                    update_render_status(task_id, 'completed')
+                except Exception as e:
+                    logger.error(f"Error in execute_pipeline: {e}")
+                    update_render_status(task_id, 'failed', str(e))
+            else:
+                update_render_status(task_id, 'failed', 'Missing clips')
+                
+        except Exception as e:
+            logger.error(f"Render worker error: {e}")
+        finally:
+            render_queue.task_done()
+
+@app.on_event("startup")
+async def startup_event():
+    # Initialize database correctly before worker starts
+    init_db()
+    asyncio.create_task(render_worker())
+
+class BatchRenderRequest(BaseModel):
+    variants: List[str]
+
+@app.post("/api/jobs/{job_id}/render/batch")
+async def render_batch(job_id: str, request: BatchRenderRequest):
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+        
+    for variant_id in request.variants:
+        task_id = f"{job_id}_{variant_id}"
+        from database import queue_render_task
+        queue_render_task(task_id, job_id, variant_id)
+        
+        await render_queue.put({
+            'job_id': job_id,
+            'variant_id': variant_id,
+            'task_id': task_id
+        })
+        
+    return {"status": "success", "message": f"Queued {len(request.variants)} variants."}
+
+@app.get("/api/jobs/{job_id}/render/status")
+async def get_render_status(job_id: str):
+    from database import get_render_statuses
+    statuses = get_render_statuses(job_id)
+    return {"status": "success", "variants": statuses}
 
 @app.get("/api/factory-status")
 async def get_factory_status():

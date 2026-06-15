@@ -3,7 +3,10 @@ domain: Frontend
 folder_path: docs/Frontend
 description: Frontend setup, components, UI guidelines, and React details.
 veracity_score: 4
-tags: [frontend, ui, react]
+tags:
+  - frontend
+  - ui
+  - react
 ---
 
 # Antigravity Studio - Frontend Workspace

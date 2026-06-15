@@ -3,7 +3,10 @@ domain: Backend
 folder_path: docs/Backend
 description: Pending tasks and roadmap for the backend.
 veracity_score: 3
-tags: [todo, roadmap, backend]
+tags:
+  - todo
+  - roadmap
+  - backend
 ---
 
 # Backend TODO

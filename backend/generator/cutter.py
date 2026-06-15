@@ -21,6 +21,8 @@ def _prep_clip(phase: dict, video_path: str, video_id: str, variant_id: str, pha
     json_file = os.path.join(out_dir, f"{base_name}.json")
     
     story_text = phase.get('story_text', '')
+    start_focus_x = float(phase.get('start_focus_x', 960.0))
+    end_focus_x = float(phase.get('end_focus_x', 960.0))
     
     mapped_effects = []
     for eff in phase.get('effects', []):
@@ -34,6 +36,8 @@ def _prep_clip(phase: dict, video_path: str, video_id: str, variant_id: str, pha
             "visual_punch_in_timestamps": relative_punch_ins, 
             "duration": duration,
             "story_text": story_text,
+            "start_focus_x": start_focus_x,
+            "end_focus_x": end_focus_x,
             "effects": mapped_effects
         }, jf)
     
@@ -81,6 +85,7 @@ def generate_files_from_json(video_path: str, timeline_json: dict) -> list:
             "variant_id": variant_id,
             "video_id": video_id,
             "template_name": template_name,
+            "background_audio_track": short.get("background_audio_track", "bgm.mp3"),
             "clips": clip_paths
         })
         

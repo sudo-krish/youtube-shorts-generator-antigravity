@@ -1,16 +1,40 @@
 ---
-domain: Architecture
-folder_path: docs/Architecture
-description: YouTube Shorts algorithm timing zones, rules, and logic for AI video slicing.
+domain: "Rules"
+folder_path: "docs/Rules"
+description: "YouTube Shorts algorithm timing zones, retention rules, and logic for AI video slicing."
 veracity_score: 5
-tags: [algorithm, architecture, rules]
+tags:
+  - algorithm
+  - architecture
+  - rules
+  - retention
 ---
 
-# YouTube Shorts Algorithm Guide (2026)
+# YouTube Shorts Algorithm Guide
 
-While YouTube recently bumped the maximum length for Shorts all the way up to 3 minutes, the "perfect" timing isn't about using all that space. The algorithmic sweet spot for the vast majority of high-performing Shorts right now sits right between 20 and 45 seconds. However, the absolute best length depends entirely on the type of content you are making, because the algorithm judges different lengths by different retention standards. 
+While YouTube recently bumped the maximum length for Shorts all the way up to 3 minutes, the "perfect" timing isn't about using all that space. The algorithmic sweet spot for the vast majority of high-performing Shorts right now sits right between 20 and 45 seconds.
 
-Here is how the timing tiers break down for 2026:
+## Architectural Boundary & Environment
+**CRITICAL RULE:** The AI Builder Agent must structurally enforce these temporal limitations. Any variant output by the pipeline must accurately calculate the sum of its phase durations to fit within the intended zone, avoiding filler and bloated segments.
+
+## Algorithmic Timing Zones
+
+```mermaid
+timeline
+    title YouTube Shorts Timing Strategies
+    7-15 Seconds : The Loopers
+                 : High APV (>100%)
+                 : Memes, Visual Gags
+    15-30 Seconds : The Snackable Hits
+                  : Quick Tips, Reveals
+                  : Instant Hook, Abrupt Cut
+    30-60 Seconds : The Golden Standard
+                  : Highest View Volume
+                  : Safe Default (Tutorials, Gaming)
+    1-3 Minutes : Mini Long-Form
+                : High Investment Required
+                : Storytimes, Documentaries
+```
 
 ## 1. The 7 to 15-Second Zone (The Loopers)
 - **Best for**: Memes, visual gags, satisfying moments, and punchline humor.

@@ -37,6 +37,28 @@ def find_best_folder(query, dir_map):
     best_folder = None
     best_persona = None
     
+    # Handle new memory_bank schema
+    if isinstance(dir_map, dict) and "memory_bank" in dir_map:
+        bank = dir_map["memory_bank"]
+        for entry in bank:
+            folder = entry.get("folder")
+            desc_vec = Counter(get_words(entry.get("description", "")))
+            score = cosine_similarity(query_vec, desc_vec)
+            if score > best_score:
+                best_score = score
+                best_folder = folder
+                best_persona = entry.get("ai_persona_modifier")
+                
+        # Default to General if no good match (score == 0)
+        if best_score == 0:
+            for entry in bank:
+                if entry.get("folder") == "General":
+                    return "General", entry.get("ai_persona_modifier")
+            return None, None
+            
+        return best_folder, best_persona
+
+    # Fallback to old schema
     for folder, info in dir_map.items():
         desc_vec = Counter(get_words(info.get("description", "")))
         score = cosine_similarity(query_vec, desc_vec)

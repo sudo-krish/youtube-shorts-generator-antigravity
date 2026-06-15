@@ -3,11 +3,12 @@ import { Sidebar } from './components/layout/Sidebar';
 import { UploadDropzone } from './components/upload/UploadDropzone';
 import { ConfigurationPanel } from './components/upload/ConfigurationPanel';
 import { ExecutionView } from './components/execution/ExecutionView';
+import { RenderView } from './components/execution/RenderView';
 import { DatabaseViewer } from './components/DatabaseViewer';
 
 export const App = () => {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [wizardState, setWizardState] = useState<'UPLOAD' | 'CONFIG' | 'DB_VIEWER'>('UPLOAD');
+  const [wizardState, setWizardState] = useState<'UPLOAD' | 'CONFIG' | 'DB_VIEWER' | 'RENDER_VIEW'>('UPLOAD');
   const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
   const [currentVideoName, setCurrentVideoName] = useState<string | null>(null);
 
@@ -78,10 +79,15 @@ export const App = () => {
               }} />
             )}
           </div>
+        ) : wizardState === 'RENDER_VIEW' ? (
+          // BATCH RENDER FLOW
+          <div className="flex-1 max-w-7xl mx-auto w-full">
+            <RenderView jobId={selectedJobId} />
+          </div>
         ) : (
           // EXECUTION FLOW
           <div className="flex-1 max-w-7xl mx-auto w-full">
-            <ExecutionView jobId={selectedJobId} />
+            <ExecutionView jobId={selectedJobId} onNext={() => setWizardState('RENDER_VIEW')} />
           </div>
         )}
       </main>

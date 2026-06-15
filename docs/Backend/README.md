@@ -3,7 +3,14 @@ domain: Backend
 folder_path: docs/Backend
 description: Backend services, APIs, and audio/video processing details.
 veracity_score: 5
-tags: [backend, api, python, modular, multi-agent, context, ffmpeg]
+tags:
+  - backend
+  - api
+  - python
+  - modular
+  - multi-agent
+  - context
+  - ffmpeg
 ---
 
 # Antigravity Studio - AI-Directed Video Engine

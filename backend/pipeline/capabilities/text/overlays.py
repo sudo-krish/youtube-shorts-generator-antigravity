@@ -1,22 +1,27 @@
 import logging
+import textwrap
 import whisperx
 
 logger = logging.getLogger(__name__)
 
 def build_drawtext_filter(text: str, start_time: float, duration: float) -> str:
-    """Builds a FFmpeg drawtext filter string for narrative story text."""
+    """Builds a FFmpeg drawtext filter string for narrative story text with auto-wrapping."""
     if not text:
         return ""
         
     font_path = "/usr/share/fonts/truetype/msttcorefonts/Impact.ttf" # Or generic
-    safe_text = text.replace("'", "").replace(":", "")
+    safe_text = text.replace("'", "").replace(":", "\\:").replace(",", "\\,")
+    
+    # Auto-wrap text so it doesn't run off the screen
+    wrapped_lines = textwrap.wrap(safe_text, width=22)
+    final_text = r"\n".join(wrapped_lines)
     
     end_time = start_time + duration
     enable_expr = f"between(t,{start_time},{end_time})"
     
-    # Text drops down from top
-    base_font = f"fontfile='{font_path}':text='{safe_text}':borderw=4:bordercolor=black:shadowcolor=black@0.8:shadowx=8:shadowy=8:fontsize=70:box=1:boxcolor=black@0.6:boxborderw=20"
-    pos_expr = f"x=(w-text_w)/2:y='if(lt(t,{start_time}+0.3), h*0.6 + ({start_time}+0.3-t)*200, h*0.6)'"
+    # Text drops down from top and has a polished TikTok-style aesthetic
+    base_font = f"fontfile='{font_path}':text='{final_text}':fontcolor=white:borderw=5:bordercolor=black:shadowcolor=black@0.9:shadowx=6:shadowy=6:fontsize=75:box=1:boxcolor=black@0.5:boxborderw=25"
+    pos_expr = f"x=(w-text_w)/2:y='if(lt(t,{start_time}+0.3), h*0.65 + ({start_time}+0.3-t)*150, h*0.65)'"
     
     return f"drawtext={base_font}:{pos_expr}:enable='{enable_expr}'"
 

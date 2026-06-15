@@ -47,6 +47,28 @@ export const api = {
     return res.json();
   },
 
+  getNodeOutput: async (jobId: string, nodeId: string) => {
+    const res = await fetch(`${API_BASE_URL}/api/jobs/${jobId}/nodes/${nodeId}`);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
+  batchRender: async (jobId: string, variants: string[]) => {
+    const res = await fetch(`${API_BASE_URL}/api/jobs/${jobId}/render/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ variants })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+  
+  getRenderStatus: async (jobId: string) => {
+    const res = await fetch(`${API_BASE_URL}/api/jobs/${jobId}/render/status`);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
   redriveJob: async (jobId: string) => {
     const res = await fetch(`${API_BASE_URL}/api/redrive/${jobId}`, {
       method: 'POST'
