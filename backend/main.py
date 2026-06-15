@@ -510,11 +510,24 @@ async def render_worker():
                 out_file = os.path.join(OUTPUTS_DIR, f"viral_short_{job_id}_{variant_id}.mp4")
                 try:
                     execute_pipeline(clips_data, out_file)
-                    update_render_status(task_id, 'completed')
+                    
+                    # Automated QA Gate
+                    from pipeline.qa_gate import run_qa_gate
+                    from database import update_render_status
+                    if run_qa_gate(out_file):
+                        update_render_status(task_id, 'completed')
+                    else:
+                        logger.warning(f"QA Gate Failed for {task_id}. Triggering Redrive (Requeueing)...")
+                        # Simple redrive logic: delete output and requeue once, or just mark as failed
+                        # so the user can hit 'Retry'. Let's mark as failed so it shows up in UI as failed.
+                        update_render_status(task_id, 'failed', 'QA Validation Failed')
+                        
                 except Exception as e:
                     logger.error(f"Error in execute_pipeline: {e}")
+                    from database import update_render_status
                     update_render_status(task_id, 'failed', str(e))
             else:
+                from database import update_render_status
                 update_render_status(task_id, 'failed', 'Missing clips')
                 
         except Exception as e:

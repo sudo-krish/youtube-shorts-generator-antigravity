@@ -58,10 +58,16 @@ A Directed Acyclic Graph (DAG) pipeline. To prevent "Lost in the Middle" LLM amn
 6. Builder takes ONLY the Specialist's output to format final JSON.
 The pipeline relies completely on deterministic pre-processors (Audio Hype Map, OCR, YOLOv8) to provide a ground-truth Context Engine before sending a single prompt to Gemini.
 
-## 4. Execution Engine Layer
-FFmpeg is notoriously prone to memory leaks on massive filter graphs. Instead of building one giant string, the pipeline executes a multi-stage process:
-1. It precisely snaps visual cuts to the nearest preceding I-Frame (Keyframe) for instantaneous stream copying and prevents audio desync.
-2. It processes clips concurrently using `ProcessPoolExecutor` for optimal core utilization.
-3. It runs **Demucs** to physically separate the vocal stem from game audio.
-4. It mixes ducked audio (driving background music exclusively against the isolated vocal track) and applies LUFS (-14) normalization.
-5. It runs a Headless Node.js Compositor using Puppeteer to generate a dynamic `.webm` subtitle track with alpha transparency, then overlays it in the final fast-pass.
+## 4. Asset Engine Layer (Bootstrapping & JIT)
+The pipeline employs a **Two-Tier Asset Strategy** to bypass heavy vector database dependencies:
+1. **Local Cache & BM25 Matcher**: A local `/assets/` directory seeded with high-quality CC0 `wav` files. The system utilizes a lightweight Python `SequenceMatcher` to calculate token-overlap between AI semantic requests and the `asset_manifest.json`.
+2. **JIT API Fetcher**: If the semantic match score drops below 0.4, the system triggers a Just-In-Time REST query to the FreeSound API, strictly filtering by CC0, and seamlessly streams the asset down to the FFmpeg engine instantly.
+
+## 5. Execution Engine Layer (Elite Tier)
+FFmpeg is notoriously prone to memory leaks on massive filter graphs. Instead of building one giant string, the pipeline executes a hyper-optimized multi-stage process:
+1. **The Padded Clip Strategy ("Handles")**: It precisely snaps visual cuts to the nearest I-Frame, but adds a mathematically perfect 3-second temporal buffer to both sides of the clip.
+2. **Micro-Targeted Audio Separation**: It runs **Demucs** ONLY on these padded 15s micro-chunks synchronously, completely bypassing the massive I/O bottleneck of separating a full 1-hour VOD.
+3. **Flawless Stitching Matrix**: The engine runs 1.0s `acrossfade` transitions strictly on the overlapping background stems, while hard-cutting the isolated dialogue stems, resulting in a continuous broadcast audio bed without pops.
+4. **Platform-Native Hardware Encoding**: A dynamic `get_encoder_profile()` fallback wrapper detects and executes `h264_nvenc` via host passthrough for lightning-fast GPU-accelerated rendering.
+5. **Headless Compositor**: A Puppeteer Node.js service overlays dynamic `webm` captions.
+6. **Automated Structural QA Gate**: Before returning to the UI, the pipeline runs a rigorous gate logic using `ffprobe` to validate stream structure and `cv2` (OpenCV) frame-variance sampling to catch and automatically redrive frozen or pure black renders.

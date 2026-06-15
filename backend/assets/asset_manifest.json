@@ -1,0 +1,26 @@
+{
+    "Impacts/heavy_explosion.wav": {
+        "tags": "impacts heavy explosion synthesized seed"
+    },
+    "Impacts/deep_sub_drop.wav": {
+        "tags": "impacts deep sub drop synthesized seed"
+    },
+    "Transitions/digital_glitch.wav": {
+        "tags": "transitions digital glitch synthesized seed"
+    },
+    "Transitions/cinematic_whoosh.wav": {
+        "tags": "transitions cinematic whoosh synthesized seed"
+    },
+    "UI/soft_click.wav": {
+        "tags": "ui soft click synthesized seed"
+    },
+    "UI/success_chime.wav": {
+        "tags": "ui success chime synthesized seed"
+    },
+    "Music/cyberpunk_bass.wav": {
+        "tags": "music cyberpunk bass synthesized seed"
+    },
+    "Music/chill_lofi_pad.wav": {
+        "tags": "music chill lofi pad synthesized seed"
+    }
+}

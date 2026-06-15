@@ -14,14 +14,23 @@ def _prep_clip(phase: dict, video_path: str, video_id: str, variant_id: str, pha
     original_start_t = float(phase['start_time'])
     end_t = float(phase['end_time'])
     
+    # 3-Second Temporal Padding Handles
+    HANDLE_DURATION = 3.0
+    padded_start_t = max(0.0, original_start_t - HANDLE_DURATION)
+    padded_end_t = end_t + HANDLE_DURATION
+    
     # Snap to previous I-frame to prevent slow decoding and black frames
-    start_t = get_previous_iframe(video_path, original_start_t)
-    duration = end_t - start_t
+    start_t = get_previous_iframe(video_path, padded_start_t)
+    
+    actual_handle_start = original_start_t - start_t
+    actual_handle_end = padded_end_t - end_t
+    visual_duration = end_t - original_start_t
+    padded_duration = padded_end_t - start_t
     
     phase_id = phase.get('phase_id', f"phase_{phase_index}")
     
     raw_punch_ins = phase.get('visual_punch_in_timestamps', [])
-    relative_punch_ins = [float(pt) for pt in raw_punch_ins if 0 <= float(pt) <= duration]
+    relative_punch_ins = [float(pt) for pt in raw_punch_ins if 0 <= float(pt) <= visual_duration]
     
     base_name = f"{video_id}_{variant_id}_{phase_index}_{phase_id}"
     out_file = os.path.join(out_dir, f"{base_name}.mp4")
@@ -41,7 +50,10 @@ def _prep_clip(phase: dict, video_path: str, video_id: str, variant_id: str, pha
     with open(json_file, 'w') as jf:
         json.dump({
             "visual_punch_in_timestamps": relative_punch_ins, 
-            "duration": duration,
+            "duration": visual_duration,
+            "padded_duration": padded_duration,
+            "handle_start": actual_handle_start,
+            "handle_end": actual_handle_end,
             "story_text": story_text,
             "start_focus_x": start_focus_x,
             "end_focus_x": end_focus_x,
@@ -52,14 +64,14 @@ def _prep_clip(phase: dict, video_path: str, video_id: str, variant_id: str, pha
         "ffmpeg", "-y", 
         "-ss", str(start_t),
         "-i", video_path, 
-        "-t", str(duration),
+        "-t", str(padded_duration),
         "-c", "copy",
         out_file
     ]
     
     logger.debug(f"Running generator ffmpeg cmd: {' '.join(cmd)}")
     subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    logger.info(f"Successfully generated file clip: {out_file}")
+    logger.info(f"Successfully generated file clip with handles: {out_file}")
     
     return out_file
 
