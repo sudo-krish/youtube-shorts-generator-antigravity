@@ -90,6 +90,18 @@ export const RenderView = ({ jobId }: RenderViewProps) => {
     }
   };
 
+  const handleSingleRender = async (vId: string) => {
+    setStatus('rendering');
+    setProgress(`Queuing variant ${vId}...`);
+    try {
+      await api.batchRender(jobId, [vId]);
+    } catch (err) {
+      console.error(err);
+      setStatus('idle');
+      setProgress('Failed to start render.');
+    }
+  };
+
   return (
     <div className="w-full flex flex-col gap-6 h-[calc(100vh-8rem)]">
       <header className="flex-none flex justify-between items-center bg-black/40 backdrop-blur-xl border border-white/10 p-6 rounded-2xl">
@@ -186,13 +198,25 @@ export const RenderView = ({ jobId }: RenderViewProps) => {
                       <div className="flex flex-col items-center gap-3">
                         <Activity className="w-8 h-8 text-rose-400" />
                         <span className="text-xs text-rose-400 font-mono">Failed</span>
+                        <button 
+                          onClick={() => handleSingleRender(vId)}
+                          className="mt-2 px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded-lg text-xs font-bold hover:bg-indigo-500/40"
+                        >
+                          Retry Render
+                        </button>
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center gap-2 opacity-30">
+                      <div className="flex flex-col items-center gap-2 opacity-40 group-hover:opacity-100 transition-opacity">
                         <Layers className="w-8 h-8 text-white" />
-                        <span className="text-[10px] font-mono text-white uppercase tracking-wider text-center px-4">
+                        <span className="text-[10px] font-mono text-white uppercase tracking-wider text-center px-4 mb-2">
                           {v.hooks?.[0] || 'Pending Pre-Render'}
                         </span>
+                        <button 
+                          onClick={() => handleSingleRender(vId)}
+                          className="px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded-lg text-xs font-bold hover:bg-indigo-500/40 cursor-pointer pointer-events-auto"
+                        >
+                          Render Video
+                        </button>
                       </div>
                     )}
                   </div>

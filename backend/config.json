@@ -1,0 +1,10 @@
+{
+  "models": {
+    "observer": "gemini-2.5-flash",
+    "scriptwriter": "deepseek-v4-flash",
+    "director": "deepseek-v4-flash",
+    "editor": "deepseek-v4-pro",
+    "specialist": "deepseek-v4-pro",
+    "builder": "deepseek-v4-flash"
+  }
+}

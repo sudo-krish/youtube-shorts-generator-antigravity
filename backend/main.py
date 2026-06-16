@@ -592,7 +592,6 @@ async def render_worker():
             job = get_job(job_id)
             if not job:
                 update_render_status(task_id, "failed", "Job not found")
-                render_queue.task_done()
                 continue
 
             segments_path = job["json_path"]
@@ -606,7 +605,6 @@ async def render_worker():
 
             if not short:
                 update_render_status(task_id, "failed", "Variant not found")
-                render_queue.task_done()
                 continue
 
             update_render_status(task_id, "rendering")
@@ -620,7 +618,6 @@ async def render_worker():
             except Exception as e:
                 logger.error(f"Error in generate_files_from_json: {e}")
                 update_render_status(task_id, "failed", str(e))
-                render_queue.task_done()
                 continue
 
             # Step 2: Pipeline Editor

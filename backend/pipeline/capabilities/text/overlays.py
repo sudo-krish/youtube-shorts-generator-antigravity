@@ -80,9 +80,15 @@ def run_whisperx(audio_path: str, ass_file: str):
     audio = whisperx.load_audio(audio_path)
     result = model.transcribe(audio, batch_size=16)
 
-    model_a, metadata = whisperx.load_align_model(
-        language_code=result["language"], device=device
-    )
+    try:
+        model_a, metadata = whisperx.load_align_model(
+            language_code=result["language"], device=device
+        )
+    except Exception as e:
+        logger.warning(f"Failed to load align model for {result['language']} ({e}). Falling back to 'en'.")
+        model_a, metadata = whisperx.load_align_model(
+            language_code="en", device=device
+        )
     result = whisperx.align(
         result["segments"],
         model_a,

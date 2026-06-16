@@ -14,11 +14,17 @@ tags:
 
 ## Execution & Monitoring
 
-### `ExecutionView.tsx`
-The control center while a job is running.
+### `ExecutionView.tsx` & `RenderView.tsx`
+The control centers while a job is running or queued for rendering.
 - **Polling Loop**: Runs a `setInterval` every 3 seconds to fetch the `agent_states` dictionary from the backend.
 - **Redrive UI**: If the status returns `failed`, it exposes a "Redrive" button to trigger `POST /api/redrive/{job_id}`.
 - **Split Pane**: Renders the `PipelineVisualizer` at the top. The bottom is split between a "Node Inspection" JSON preview panel and the `LogViewer`.
+- **Render UI (`RenderView.tsx`)**: Allows batch queuing of generated short blueprints to FFmpeg. Recently updated to support an individual **"Render Video"** / **"Retry Render"** action per variant via isolated hovering.
+
+### `Dashboard.tsx`
+A dedicated cost tracking and analytics view.
+- Connects to `/api/metrics/usage` and `/api/metrics/balance` (direct HTTP to DeepSeek).
+- Visualizes real-time token spend, provider API balances, and rate limit occurrences across models.
 
 ### `PipelineVisualizer.tsx`
 A complex, custom-built node graph using standard DOM elements (flexbox/relative positioning) rather than a heavy canvas library.

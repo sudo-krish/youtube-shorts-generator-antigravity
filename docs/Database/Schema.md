@@ -51,6 +51,7 @@ erDiagram
         float start_time
         float end_time
         int chunk_id
+        int model_id FK
     }
     
     JOB_RENDERS {
@@ -62,6 +63,35 @@ erDiagram
         float created_at
         float updated_at
     }
+    
+    MODELS {
+        int id PK
+        string provider
+        string model_name
+        float cost_per_1m_input
+        float cost_per_1m_output
+    }
+    
+    MODEL_USAGE {
+        int id PK
+        int model_id FK
+        string job_id FK
+        string task_type
+        int prompt_tokens
+        int completion_tokens
+        int total_tokens
+        float estimated_cost
+        float created_at
+    }
+    
+    RATE_LIMITS {
+        int id PK
+        int model_id FK
+        string endpoint
+        float limit_hit_at
+        float reset_at
+        string context
+    }
 ```
 
 ## 1. The Videos and Jobs Tables
@@ -69,7 +99,13 @@ erDiagram
 - **`jobs`**: The overarching session controller. The `metadata` column stores the global context (Game, Vibe, Region) that the user configures in the React UI.
 
 ## 2. Granular State Tracking (`job_stages`)
-This is the most critical table for the backend. Because the pipeline splits a 10-minute video into multiple overlapping chunks, and then runs 6 distinct agents per chunk, we track state at the `(job_id, chunk_id, stage_name)` grain.
+This is the most critical table for the backend. Because the pipeline splits a 10-minute video into multiple overlapping chunks, and then runs 6 distinct agents per chunk, we track state at the `(job_id, chunk_id, stage_name)` grain. Each stage is directly linked to the specific LLM used via the `model_id` foreign key.
+
+## 3. Cost & Rate Limit Monitoring
+To accurately track LLM consumption across Gemini and DeepSeek:
+- **`models`**: Tracks provider information and dynamic pricing tiers per 1M tokens.
+- **`model_usage`**: Logs every generated completion along with token counts and calculated cost per job task.
+- **`rate_limits`**: Persists HTTP 429 timeouts to provide backoff transparency to the orchestrator.
 
 ## 3. The Redrive Engine (Token Conservation)
 When the React UI triggers `POST /api/redrive/{job_id}` after a Gemini timeout:
