@@ -18,7 +18,7 @@ def get_previous_iframe(video_path: str, target_time: float) -> float:
         "-select_streams",
         "v:0",
         "-show_entries",
-        "frame=pkt_pts_time,pict_type",
+        "frame=best_effort_timestamp_time,pict_type",
         "-of",
         "csv=print_section=0",
         "-read_intervals",

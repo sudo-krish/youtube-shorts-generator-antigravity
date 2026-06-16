@@ -286,7 +286,12 @@ class AIOrchestrator:
                 validated_plans,
             )
 
-            return json_output.get("shorts", []), did_work
+            if isinstance(json_output, list):
+                shorts = json_output
+            else:
+                shorts = json_output.get("shorts", [])
+                
+            return shorts, did_work
 
         finally:
             try:

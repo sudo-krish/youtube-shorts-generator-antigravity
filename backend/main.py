@@ -175,10 +175,10 @@ def run_orchestrator_job(
         update_job_status(job_id, f"failed: {str(e)}")
         # Also mark any stuck running stages as failed
         import sqlite3
-        from database import DB_PATH
+        from database import DB_PATH, get_db_connection
         import time
 
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
             "UPDATE job_stages SET status = 'failed', end_time = ? WHERE job_id = ? AND status IN ('running', 'processing')",
@@ -294,9 +294,9 @@ async def redrive_job(job_id: str, background_tasks: BackgroundTasks):
     # Set all stuck running stages to failed before redriving
     import sqlite3
     import time
-    from database import DB_PATH
+    from database import DB_PATH, get_db_connection
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
         "UPDATE job_stages SET status = 'failed', end_time = ? WHERE job_id = ? AND status IN ('running', 'processing')",
@@ -356,9 +356,9 @@ async def cancel_job(job_id: str):
 
     import sqlite3
     import time
-    from database import DB_PATH
+    from database import DB_PATH, get_db_connection
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
         "UPDATE job_stages SET status = 'failed', end_time = ? WHERE job_id = ? AND status IN ('running', 'processing')",
@@ -600,7 +600,7 @@ async def render_worker():
 
             shorts = data.get("shorts", [])
             short = next(
-                (s for s in shorts if str(s.get("variant_id")) == variant_id), None
+                (s for i, s in enumerate(shorts) if str(s.get("variant_id") or i) == str(variant_id)), None
             )
 
             if not short:

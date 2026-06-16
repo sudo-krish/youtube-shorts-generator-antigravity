@@ -1,8 +1,12 @@
 import logging
 import textwrap
 import whisperx
+import threading
+import torch
 
 logger = logging.getLogger(__name__)
+
+GPU_LOCK = threading.Lock()
 
 
 def build_drawtext_filter(text: str, start_time: float, duration: float) -> str:
@@ -39,7 +43,7 @@ PlayResY: 1920
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Pop,Arial,90,&H0000FFFF,&H000000FF,&H00000000,&H00800000,-1,0,0,0,100,100,0,0,1,8,4,5,10,10,150,1
+Style: Pop,Arial,90,&H0000FFFF,&H000000FF,&H00000000,&H00800000,-1,0,0,0,100,100,0,0,1,8,4,5,10,10,450,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -75,28 +79,32 @@ def generate_json_subtitles(word_segments, output_file="captions.json"):
 
 def run_whisperx(audio_path: str, ass_file: str):
     """Runs WhisperX to extract word-level alignments and generates the .ass file."""
-    device = "cpu"
-    model = whisperx.load_model("base", device)
-    audio = whisperx.load_audio(audio_path)
-    result = model.transcribe(audio, batch_size=16)
+    with GPU_LOCK:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = whisperx.load_model("base", device)
+        audio = whisperx.load_audio(audio_path)
+        result = model.transcribe(audio, batch_size=16, language="en")
 
-    try:
-        model_a, metadata = whisperx.load_align_model(
-            language_code=result["language"], device=device
+        try:
+            model_a, metadata = whisperx.load_align_model(
+                language_code="en", device=device
+            )
+        except Exception as e:
+            logger.warning(f"Failed to load align model ({e}). Falling back to 'en'.")
+            model_a, metadata = whisperx.load_align_model(
+                language_code="en", device=device
+            )
+        result = whisperx.align(
+            result["segments"],
+            model_a,
+            metadata,
+            audio,
+            device,
+            return_char_alignments=False,
         )
-    except Exception as e:
-        logger.warning(f"Failed to load align model for {result['language']} ({e}). Falling back to 'en'.")
-        model_a, metadata = whisperx.load_align_model(
-            language_code="en", device=device
-        )
-    result = whisperx.align(
-        result["segments"],
-        model_a,
-        metadata,
-        audio,
-        device,
-        return_char_alignments=False,
-    )
+        
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     all_words = []
     for segment in result["segments"]:

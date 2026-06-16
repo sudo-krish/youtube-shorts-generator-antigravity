@@ -17,6 +17,8 @@ The Database layer governs state persistence for physical video files, asynchron
 ## Architectural Boundary & Environment
 **CRITICAL RULE:** The database uses SQLite (`backend/database.py`). It is intentionally kept lightweight and purely relational. It acts as the backbone for the Redrive Engine—allowing jobs to gracefully recover from LLM rate limits without wasting tokens.
 
+**Concurrency Configuration:** To support asynchronous parallel rendering and multi-agent jobs without locking the database, the SQLite connections are configured with `check_same_thread=False`, `timeout=15.0`, and strictly use `PRAGMA journal_mode=WAL;` (Write-Ahead Logging).
+
 ## Schema Architecture
 
 ```mermaid

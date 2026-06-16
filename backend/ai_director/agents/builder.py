@@ -35,7 +35,10 @@ class BuilderAgent:
             ),
         )
         try:
-            return json.loads(response_text)
+            parsed = json.loads(response_text)
+            if isinstance(parsed, list):
+                return {"shorts": parsed}
+            return parsed
         except Exception as e:
             logger.error(f"Failed to parse Builder JSON: {str(e)}")
             return {"shorts": []}

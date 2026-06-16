@@ -1,7 +1,9 @@
 import os
+import json
 import logging
 import subprocess
-from pipeline.engine import execute_pipeline
+import ffmpeg
+from pipeline.engine import execute_pipeline, _build_visual_filtergraph
 from pipeline.qa_gate import run_qa_gate
 
 logger = logging.getLogger(__name__)
@@ -12,13 +14,55 @@ def _render_hook_variant(hook_clip: str, base_output_path: str, variant: dict) -
     hook_out = base_output_path.replace(".mp4", f"_{variant['id']}_hook.mp4")
     logger.info(f"Asset Tree: Rendering Hook {variant['id']}...")
 
+    # Read hook metadata
+    json_path = hook_clip.replace(".mp4", ".json")
+    meta = {}
+    if os.path.exists(json_path):
+        with open(json_path, "r") as f:
+            meta = json.load(f)
+
+    try:
+        video_stream = next(
+            s for s in ffmpeg.probe(hook_clip)["streams"] if s["codec_type"] == "video"
+        )
+        orig_w = int(video_stream["width"])
+        orig_h = int(video_stream["height"])
+        fps_fraction = video_stream.get("r_frame_rate", "30/1")
+    except Exception:
+        orig_w, orig_h, fps_fraction = 1920, 1080, "60/1"
+
+    crop_w = int(orig_h * (9 / 16))
+    crop_h = orig_h
+    hook_duration = meta.get("duration", 1.5)
+
+    # Build the proper cropping/trimming filtergraph
+    v_filter_str, _ = _build_visual_filtergraph(
+        meta=meta,
+        duration=hook_duration,
+        fps_fraction=fps_fraction,
+        orig_w=orig_w,
+        crop_w=crop_w,
+        crop_h=crop_h,
+        is_hook=True,
+        hook_duration=hook_duration,
+    )
+
+    # Append the variant styling
+    final_vf = f"{v_filter_str},{variant['style']}"
+
+    # We also need to trim the audio to match! The handle_start needs to be trimmed.
+    handle_start = meta.get("handle_start", 0.0)
+    audio_filter = f"atrim=start={handle_start}:duration={hook_duration},asetpts=PTS-STARTPTS"
+
     cmd_hook = [
         "ffmpeg",
         "-y",
         "-i",
         hook_clip,
         "-vf",
-        f"scale=1080:1920,fps=60,{variant['style']}",
+        final_vf,
+        "-af",
+        audio_filter,
         "-c:v",
         "libx264",
         "-preset",
@@ -104,12 +148,9 @@ def generate_asset_tree(clips_data: dict, base_output_path: str) -> list[str]:
 
     # 2. Render 3 Hook Variations
     hook_variations = [
-        {"id": "hookA", "style": "eq=contrast=1.5:saturation=1.5"},  # High Energy
-        {"id": "hookB", "style": "hue=h=90:s=1.0"},  # Psychedelic/Curiosity
-        {
-            "id": "hookC",
-            "style": "colorchannelmixer=.3:.4:.3:0:.3:.4:.3:0:.3:.4:.3",
-        },  # B&W / Direct
+        {"id": "hookA", "style": "eq=contrast=1.3:saturation=1.5"},  # High Energy
+        {"id": "hookB", "style": "eq=saturation=0.1:gamma=0.9"},  # B&W / Bleak
+        {"id": "hookC", "style": "colorbalance=rs=.2:rm=.2:rh=.2"},  # Warm / Glowing
     ]
 
     final_outputs = []

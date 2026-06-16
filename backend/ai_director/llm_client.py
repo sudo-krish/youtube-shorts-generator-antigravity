@@ -61,7 +61,7 @@ class LLMClient:
         wait=wait_exponential(multiplier=1, min=2, max=30),
         reraise=True,
     )
-    def _generate_deepseek(self, model: str, contents: list):
+    def _generate_deepseek(self, model: str, contents: list, config: types.GenerateContentConfig = None):
         # DeepSeek uses OpenAI format messages: [{"role": "user", "content": "..."}]
         messages = []
         for content in contents:
@@ -70,12 +70,24 @@ class LLMClient:
             else:
                 messages.append({"role": "user", "content": str(content)})
 
+        kwargs = {}
+        if config:
+            if getattr(config, "response_schema", None):
+                import json
+                schema_dict = config.response_schema.model_json_schema()
+                schema_str = json.dumps(schema_dict, indent=2)
+                schema_instruction = f"\n\nYou MUST respond with raw JSON that perfectly matches the following JSON Schema. Do NOT wrap the JSON in markdown blocks or backticks. Only output valid JSON:\n{schema_str}"
+                messages[-1]["content"] += schema_instruction
+            if getattr(config, "response_mime_type", None) == "application/json":
+                kwargs["response_format"] = {"type": "json_object"}
+
         # Route creative/formatting agents to V4-Flash with Thinking Disabled
         if "flash" in model.lower():
             response = self.deepseek_client.chat.completions.create(
                 model=model,
                 messages=messages,
                 extra_body={"thinking_mode": False, "thinking": {"type": "disabled"}},
+                **kwargs
             )
             text = response.choices[0].message.content
         # Route mathematical/FFmpeg agents to V4-Pro with Thinking Default
@@ -83,6 +95,7 @@ class LLMClient:
             response = self.deepseek_client.chat.completions.create(
                 model=model,
                 messages=messages,
+                **kwargs
             )
             text = response.choices[0].message.content
             if text:
@@ -92,6 +105,7 @@ class LLMClient:
             response = self.deepseek_client.chat.completions.create(
                 model=model,
                 messages=messages,
+                **kwargs
             )
             text = response.choices[0].message.content
 
@@ -119,7 +133,7 @@ class LLMClient:
         """Generates content dynamically routing to Gemini or DeepSeek based on model string."""
         try:
             if model.startswith("deepseek"):
-                return self._generate_deepseek(model, contents)
+                return self._generate_deepseek(model, contents, config)
             else:
                 return self._generate_google(model, contents, config)
         except Exception as e:

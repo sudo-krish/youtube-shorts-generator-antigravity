@@ -132,6 +132,7 @@ def _build_visual_filtergraph(
             if vf:
                 v_filters.append(vf)
 
+    v_filters.append("format=yuv420p,limiter=min=0:max=255")
     v_filter_str = ",".join(v_filters)
     return v_filter_str, visual_duration
 
@@ -316,8 +317,8 @@ def _stitch_video_and_audio(
     filter_commands = []
 
     # 1. Video Stitching
-    filter_commands.append("[0:v]scale=1080:1920,fps=60[v0_scaled]")
-    filter_commands.append("[1:v]scale=1080:1920,fps=60[v1_scaled]")
+    filter_commands.append("[0:v]scale=1080:1920,fps=60,settb=1/60000[v0_scaled]")
+    filter_commands.append("[1:v]scale=1080:1920,fps=60,settb=1/60000[v1_scaled]")
     first_trans = clip_blueprints[0].get("transition_out", "fade")
     filter_commands.append(
         f"[v0_scaled][v1_scaled]xfade=transition={first_trans}:duration={xfade_duration}:offset={clip_blueprints[0].get('duration', durations[0]) - xfade_duration}[xf_v_0]"
@@ -371,7 +372,7 @@ def _stitch_video_and_audio(
         next_voc = f"[xf_voc_{i}]"
         next_bg = f"[xf_bg_{i}]"
 
-        filter_commands.append(f"[{i + 1}:v]scale=1080:1920,fps=60[v{i + 1}_scaled]")
+        filter_commands.append(f"[{i + 1}:v]scale=1080:1920,fps=60,settb=1/60000[v{i + 1}_scaled]")
         filter_commands.append(
             f"{last_v}[v{i + 1}_scaled]xfade=transition={trans_name}:duration={xfade_duration}:offset={current_offset}{next_v}"
         )

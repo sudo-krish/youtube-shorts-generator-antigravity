@@ -7,11 +7,15 @@ import logging
 logger = logging.getLogger(__name__)
 DB_PATH = os.path.join(os.path.dirname(__file__), "antigravity.db")
 
+def get_db_connection():
+    return sqlite3.connect(DB_PATH, timeout=15.0, check_same_thread=False)
+
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
-
+    cursor.execute("PRAGMA journal_mode=WAL;")
+    
     # Create videos table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS videos (
@@ -125,7 +129,7 @@ def init_db():
 
 
 def create_video(video_id: str, video_name: str, video_path: str):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
         """
@@ -139,7 +143,7 @@ def create_video(video_id: str, video_name: str, video_path: str):
 
 
 def get_video(video_id: str):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM videos WHERE video_id = ?", (video_id,))
@@ -149,7 +153,7 @@ def get_video(video_id: str):
 
 
 def create_job(job_id: str, video_id: str, metadata: dict = None):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
         """
@@ -165,7 +169,7 @@ def create_job(job_id: str, video_id: str, metadata: dict = None):
 def update_job_status(
     job_id: str, status: str, json_path: str = None, num_chunks: int = None
 ):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     updates = ["status = ?"]
     params = [status]
@@ -189,7 +193,7 @@ def update_job_status(
 def log_stage(
     job_id: str, stage_name: str, status: str, logs: str = None, chunk_id: int = None, model_id: int = None
 ):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # Check if stage already exists for this job (and chunk_id)
@@ -237,7 +241,7 @@ def log_stage(
 
 
 def get_all_jobs():
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute("""
@@ -252,7 +256,7 @@ def get_all_jobs():
 
 
 def get_job_stages(job_id: str):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute(
@@ -279,7 +283,7 @@ def get_job_stages(job_id: str):
 
 
 def get_job(job_id: str):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute(
@@ -305,7 +309,7 @@ def get_job(job_id: str):
 
 
 def get_completed_stages(job_id: str):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute(
@@ -318,7 +322,7 @@ def get_completed_stages(job_id: str):
 
 
 def queue_render_task(task_id: str, job_id: str, variant_id: str):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     now = time.time()
     cursor.execute(
@@ -335,7 +339,7 @@ def queue_render_task(task_id: str, job_id: str, variant_id: str):
 def update_render_status(
     task_id: str, status: str, error_logs: str = "", outputs: list = None
 ):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     outputs_str = json.dumps(outputs) if outputs is not None else None
 
@@ -358,7 +362,7 @@ def update_render_status(
 
 
 def get_render_statuses(job_id: str):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute(
@@ -380,7 +384,7 @@ def get_render_statuses(job_id: str):
 
 
 def get_database_dump():
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
@@ -403,7 +407,7 @@ def get_database_dump():
 
 
 def clear_database():
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM job_stages")
     cursor.execute("DELETE FROM jobs")
@@ -412,7 +416,7 @@ def clear_database():
     conn.close()
 
 def get_or_create_model(provider: str, model_name: str) -> int:
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM models WHERE model_name = ?", (model_name,))
     row = cursor.fetchone()
@@ -429,7 +433,7 @@ def get_or_create_model(provider: str, model_name: str) -> int:
     return model_id
 
 def log_model_usage(model_id: int, prompt_tokens: int, completion_tokens: int, cost: float):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
         "INSERT INTO model_usage (model_id, prompt_tokens, completion_tokens, cost, timestamp) VALUES (?, ?, ?, ?, ?)",
@@ -439,7 +443,7 @@ def log_model_usage(model_id: int, prompt_tokens: int, completion_tokens: int, c
     conn.close()
 
 def log_rate_limit(model_id: int, error_message: str):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
         "INSERT INTO rate_limits (model_id, timestamp, error_message) VALUES (?, ?, ?)",
@@ -449,7 +453,7 @@ def log_rate_limit(model_id: int, error_message: str):
     conn.close()
 
 def get_metrics_summary():
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     

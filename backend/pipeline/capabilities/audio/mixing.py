@@ -1,4 +1,6 @@
 import os
+import numpy as np
+from scipy.io import wavfile
 
 
 def get_bgm_and_sfx_paths(bgm_filename: str = "bgm.mp3"):
@@ -67,12 +69,30 @@ def build_audio_mix_filter(
         input_idx += 1
 
         if vocals_path and os.path.exists(vocals_path):
+            try:
+                sample_rate, data = wavfile.read(vocals_path)
+                is_silent = False
+                if data.size > 0:
+                    max_amp = np.max(np.abs(data))
+                    # Assuming 16-bit PCM, silence threshold could be around 500
+                    if max_amp < 500:
+                        is_silent = True
+                else:
+                    is_silent = True
+            except Exception:
+                is_silent = False
+
             ffmpeg_args.extend(["-i", vocals_path])
             vocals_in = f"[{input_idx}:a]"
             input_idx += 1
 
-            # Audio Ducking using isolated vocals
-            filter_complex += f"{bgm_in}{vocals_in}sidechaincompress=threshold=0.08:ratio=4.0:attack=10:release=200[ducked_bgm]"
+            if not is_silent:
+                # Audio Ducking using isolated vocals
+                filter_complex += f"{bgm_in}{vocals_in}sidechaincompress=threshold=0.08:ratio=4.0:attack=10:release=200[ducked_bgm]"
+            else:
+                # Bypass sidechain compressor and apply static -10dB dip
+                filter_complex += f"{bgm_in}volume=0.3[ducked_bgm]"
+
             audio_mix_inputs.extend([main_in, "[ducked_bgm]"])
             amix_weights.extend(["1.0", "0.4"])
         else:
