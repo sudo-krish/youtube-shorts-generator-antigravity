@@ -17,12 +17,18 @@ class LlavaVideoTransformer(BaseTransformer):
 
     def load_model(self):
         self.logger.info("Llava: Loading Qwen-0.5b Video Vision Model into VRAM...")
+        from core.settings import MODELS_DIR
+        
         # device_map="auto" automatically handles CUDA placement.
-        self.processor = AutoProcessor.from_pretrained(self.model_id)
+        self.processor = AutoProcessor.from_pretrained(
+            self.model_id,
+            cache_dir=str(MODELS_DIR)
+        )
         self.model = LlavaOnevisionForConditionalGeneration.from_pretrained(
             self.model_id, 
             device_map="auto", 
-            torch_dtype=torch.float16
+            torch_dtype=torch.float16,
+            cache_dir=str(MODELS_DIR)
         )
         self.logger.info("Llava: Loaded successfully.")
 

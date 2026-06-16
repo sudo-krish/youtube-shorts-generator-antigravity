@@ -5,12 +5,13 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "antigravity.db")
-SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "schema.sql")
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DB_PATH = os.path.join(_BASE_DIR, "antigravity.db")
+SCHEMA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.sql")
 
 def get_db_connection():
     """Returns a new SQLite connection with dict-like row factory and WAL mode."""
-    conn = sqlite3.connect(DB_PATH, timeout=15.0, check_same_thread=False)
+    print("CONNECTING TO DB:", DB_PATH); conn = sqlite3.connect(DB_PATH, timeout=15.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
 
