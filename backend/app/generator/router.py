@@ -4,7 +4,7 @@ from typing import Dict, Any, List
 import logging
 from app.generator.cutter import generate_files_from_json
 from app.generator.engine import execute_pipeline
-from app.generator.tree_generator import render_tree_blueprint
+from app.generator.tree_generator import generate_asset_tree
 from app.generator.schemas import CutterRequest, RenderRequest, RenderTreeRequest
 
 router = APIRouter(prefix="/api/generator", tags=["generator"])
@@ -29,8 +29,9 @@ async def run_render(req: RenderRequest):
 @router.post("/render_tree", response_model=GenericResponse)
 async def run_render_tree(req: RenderTreeRequest):
     logger.info(f"API: Running Multi-Hook Tree Render for Job {req.job_id}")
-    render_tree_blueprint(req.job_id, req.chunk_index, req.blueprint, req.output_dir)
-    return GenericResponse(status="success", output=req.output_dir)
+    # Treating output_dir as base_output_path for generate_asset_tree
+    result_paths = generate_asset_tree(req.blueprint, req.output_dir)
+    return GenericResponse(status="success", output=result_paths)
 
 
 class SpliceRequest(BaseModel):
