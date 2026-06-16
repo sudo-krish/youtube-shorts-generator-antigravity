@@ -1,14 +1,21 @@
 import { useState, useEffect } from 'react';
-import { Play, History, Sparkles, Database } from 'lucide-react';
+import type { FC } from 'react';
+import { Play, History, Sparkles, Database, Activity } from 'lucide-react';
 import { api } from '../../api';
 
 interface SidebarProps {
   selectedJobId: string | null;
   onSelectJob: (jobId: string | null) => void;
   onOpenDbViewer: () => void;
+  onOpenDashboard: () => void;
 }
 
-export const Sidebar = ({ selectedJobId, onSelectJob, onOpenDbViewer }: SidebarProps) => {
+export const Sidebar: FC<SidebarProps> = ({ 
+  selectedJobId, 
+  onSelectJob, 
+  onOpenDbViewer,
+  onOpenDashboard 
+}) => {
   const [jobs, setJobs] = useState<any[]>([]);
 
   useEffect(() => {
@@ -64,17 +71,22 @@ export const Sidebar = ({ selectedJobId, onSelectJob, onOpenDbViewer }: SidebarP
         </button>
 
         <button 
-          onClick={onOpenDbViewer}
-          className="w-full text-left p-4 rounded-2xl transition-all duration-300 border relative overflow-hidden bg-transparent border-transparent hover:bg-white/5 mt-2"
+          onClick={onOpenDashboard}
+          className="w-full flex items-center justify-between p-3 rounded-xl border border-aurora-cyan/30 hover:border-aurora-cyan/60 bg-aurora-cyan/10 hover:bg-aurora-cyan/20 transition-all group"
         >
-          <div className="flex items-center gap-4 relative z-10">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center transition-colors bg-white/5">
-              <Database className="w-4 h-4 text-white/40" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-white/60">Database</p>
-              <p className="text-xs text-white/40 mt-0.5">View tables</p>
-            </div>
+          <div className="flex items-center gap-3">
+            <Activity className="w-5 h-5 text-aurora-cyan group-hover:animate-pulse" />
+            <span className="font-bold text-white/90 group-hover:text-white">Metrics Dashboard</span>
+          </div>
+        </button>
+
+        <button 
+          onClick={onOpenDbViewer}
+          className="w-full flex items-center justify-between p-3 rounded-xl border border-white/10 hover:border-white/20 hover:bg-white/5 transition-colors group"
+        >
+          <div className="flex items-center gap-3">
+            <Database className="w-5 h-5 text-white/60 group-hover:text-white" />
+            <span className="font-bold text-white/60 group-hover:text-white">System Database</span>
           </div>
         </button>
 

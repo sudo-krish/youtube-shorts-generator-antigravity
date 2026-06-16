@@ -45,7 +45,42 @@ def init_db():
         start_time REAL,
         end_time REAL,
         chunk_id INTEGER,
-        FOREIGN KEY (job_id) REFERENCES jobs (job_id)
+        model_id INTEGER,
+        FOREIGN KEY (job_id) REFERENCES jobs (job_id),
+        FOREIGN KEY (model_id) REFERENCES models (id)
+    )
+    """)
+
+    # Create models table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS models (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        provider TEXT,
+        model_name TEXT UNIQUE
+    )
+    """)
+
+    # Create model_usage table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS model_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        model_id INTEGER,
+        prompt_tokens INTEGER,
+        completion_tokens INTEGER,
+        cost REAL,
+        timestamp REAL,
+        FOREIGN KEY (model_id) REFERENCES models (id)
+    )
+    """)
+
+    # Create rate_limits table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS rate_limits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        model_id INTEGER,
+        timestamp REAL,
+        error_message TEXT,
+        FOREIGN KEY (model_id) REFERENCES models (id)
     )
     """)
 
@@ -76,6 +111,11 @@ def init_db():
 
     try:
         cursor.execute("ALTER TABLE jobs ADD COLUMN num_chunks INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE job_stages ADD COLUMN model_id INTEGER")
     except sqlite3.OperationalError:
         pass
 
@@ -147,7 +187,7 @@ def update_job_status(
 
 
 def log_stage(
-    job_id: str, stage_name: str, status: str, logs: str = None, chunk_id: int = None
+    job_id: str, stage_name: str, status: str, logs: str = None, chunk_id: int = None, model_id: int = None
 ):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -170,20 +210,26 @@ def log_stage(
 
     if row:
         end_time = current_time if status in ["completed", "failed"] else None
+        
+        updates = ["status = ?", "logs = ?", "end_time = ?"]
+        params = [status, logs, end_time]
+        if model_id is not None:
+            updates.append("model_id = ?")
+            params.append(model_id)
+        params.append(row[0])
+            
         cursor.execute(
-            """
-        UPDATE job_stages SET status = ?, logs = ?, end_time = ? WHERE id = ?
-        """,
-            (status, logs, end_time, row[0]),
+            f"UPDATE job_stages SET {', '.join(updates)} WHERE id = ?",
+            tuple(params),
         )
     else:
         end_time = current_time if status in ["completed", "failed"] else None
         cursor.execute(
             """
-        INSERT INTO job_stages (job_id, stage_name, status, logs, start_time, end_time, chunk_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO job_stages (job_id, stage_name, status, logs, start_time, end_time, chunk_id, model_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
-            (job_id, stage_name, status, logs, current_time, end_time, chunk_id),
+            (job_id, stage_name, status, logs, current_time, end_time, chunk_id, model_id),
         )
 
     conn.commit()
@@ -364,3 +410,77 @@ def clear_database():
     cursor.execute("DELETE FROM videos")
     conn.commit()
     conn.close()
+
+def get_or_create_model(provider: str, model_name: str) -> int:
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM models WHERE model_name = ?", (model_name,))
+    row = cursor.fetchone()
+    if row:
+        model_id = row[0]
+    else:
+        cursor.execute(
+            "INSERT INTO models (provider, model_name) VALUES (?, ?)",
+            (provider, model_name)
+        )
+        model_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return model_id
+
+def log_model_usage(model_id: int, prompt_tokens: int, completion_tokens: int, cost: float):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO model_usage (model_id, prompt_tokens, completion_tokens, cost, timestamp) VALUES (?, ?, ?, ?, ?)",
+        (model_id, prompt_tokens, completion_tokens, cost, time.time())
+    )
+    conn.commit()
+    conn.close()
+
+def log_rate_limit(model_id: int, error_message: str):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO rate_limits (model_id, timestamp, error_message) VALUES (?, ?, ?)",
+        (model_id, time.time(), error_message)
+    )
+    conn.commit()
+    conn.close()
+
+def get_metrics_summary():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT 
+            m.provider,
+            m.model_name,
+            SUM(u.prompt_tokens) as total_prompt_tokens,
+            SUM(u.completion_tokens) as total_completion_tokens,
+            SUM(u.cost) as total_cost,
+            COUNT(u.id) as total_requests
+        FROM models m
+        LEFT JOIN model_usage u ON m.id = u.model_id
+        GROUP BY m.id
+    """)
+    usage_data = [dict(r) for r in cursor.fetchall()]
+    
+    cursor.execute("""
+        SELECT 
+            m.model_name,
+            r.timestamp,
+            r.error_message
+        FROM rate_limits r
+        JOIN models m ON r.model_id = m.id
+        ORDER BY r.timestamp DESC LIMIT 50
+    """)
+    rate_limits = [dict(r) for r in cursor.fetchall()]
+    
+    conn.close()
+    
+    return {
+        "usage": usage_data,
+        "rate_limits": rate_limits
+    }

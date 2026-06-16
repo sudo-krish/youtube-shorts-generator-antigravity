@@ -133,11 +133,11 @@ class AIOrchestrator:
         def get_state(step_name):
             return resume_state.get(chunk_idx, {}).get(step_name)
 
-        def save_state(step_name, data):
+        def save_state(step_name, data, model_id=None):
             nonlocal did_work
             did_work = True
             if job_id:
-                log_stage(job_id, step_name, "completed", str(data), chunk_id=chunk_idx)
+                log_stage(job_id, step_name, "completed", str(data), chunk_id=chunk_idx, model_id=model_id)
                 agents_dir = os.path.join(
                     os.path.dirname(WORKSPACE_DIR),
                     "outputs",
@@ -155,12 +155,24 @@ class AIOrchestrator:
             state = get_state(step_name)
             if state:
                 return state
+                
+            model_id = None
+            try:
+                from ai_director.config_manager import get_config
+                from database import get_or_create_model
+                config_models = get_config().get("models", {})
+                if step_name in config_models:
+                    model_str = config_models[step_name]
+                    provider = "gemini" if "gemini" in model_str.lower() else "deepseek"
+                    model_id = get_or_create_model(provider, model_str)
+            except Exception as e:
+                logger.warning(f"Could not determine model for stage {step_name}: {e}")
 
             if job_id:
-                log_stage(job_id, step_name, "running", running_msg, chunk_id=chunk_idx)
+                log_stage(job_id, step_name, "running", running_msg, chunk_id=chunk_idx, model_id=model_id)
 
             result = action_fn(*args)
-            save_state(step_name, result)
+            save_state(step_name, result, model_id)
             return result
 
         proxy_path = None
@@ -219,9 +231,10 @@ class AIOrchestrator:
 
             vision = execute_stage(
                 "director",
-                "Director injecting magic and vibes...",
+                "Director injecting magic and vibes based on scripts...",
                 self.director.execute,
                 context,
+                scripts,
                 self.metadata,
                 sfx_library,
                 music_library,

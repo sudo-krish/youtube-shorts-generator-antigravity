@@ -324,7 +324,7 @@ def _stitch_video_and_audio(
     )
 
     # 2. Vocals Stitching (Acrossfade matching video exactly)
-    filter_commands.append(f"[0:a][1:a]acrossfade=d={xfade_duration}[xf_voc_0]")
+    filter_commands.append(f"[{len(clips)}:a][{len(clips)+1}:a]acrossfade=d={xfade_duration}[xf_voc_0]")
 
     # 3. BG Stitching (Continuous 1.0s crossfade using handles)
     bg_xfade_duration = 1.0
@@ -376,7 +376,7 @@ def _stitch_video_and_audio(
             f"{last_v}[v{i + 1}_scaled]xfade=transition={trans_name}:duration={xfade_duration}:offset={current_offset}{next_v}"
         )
         filter_commands.append(
-            f"{last_voc}[{i + 1}:a]acrossfade=d={xfade_duration}{next_voc}"
+            f"{last_voc}[{len(clips) + i + 1}:a]acrossfade=d={xfade_duration}{next_voc}"
         )
         filter_commands.append(
             f"{last_bg}[bg_trim_{i + 1}]acrossfade=d={bg_xfade_duration}{next_bg}"
@@ -443,10 +443,14 @@ def _apply_final_mix_and_encode(
 
     cmd_mix = ["ffmpeg", "-y"]
     cmd_mix.extend(audio_mix_args)
+    
+    prefix = f"{mix_filter_complex}; " if mix_filter_complex else ""
+    filter_complex_str = f"{prefix}{final_audio_map}loudnorm=I=-14:LRA=11:TP=-1.5[loud_aout]"
+    
     cmd_mix.extend(
         [
             "-filter_complex",
-            f"{mix_filter_complex}; {final_audio_map}loudnorm=I=-14:LRA=11:TP=-1.5[loud_aout]",
+            filter_complex_str,
             "-map",
             "[loud_aout]",
             final_mix_wav,

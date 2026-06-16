@@ -4,6 +4,7 @@ import re
 import google.genai as genai
 from google.genai import types
 from tenacity import retry, stop_after_attempt, wait_exponential, RetryError
+from database import get_or_create_model, log_model_usage, log_rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -36,11 +37,24 @@ class LLMClient:
     def _generate_google(
         self, model: str, contents: list, config: types.GenerateContentConfig = None
     ):
-        return self.client.models.generate_content(
+        response = self.client.models.generate_content(
             model=model,
             contents=contents,
             config=config,
-        ).text
+        )
+        
+        # Tracking tokens (Gemini Free Tier = $0)
+        try:
+            if response.usage_metadata:
+                prompt_tokens = getattr(response.usage_metadata, 'prompt_token_count', 0)
+                completion_tokens = getattr(response.usage_metadata, 'candidates_token_count', 0)
+                if prompt_tokens > 0 or completion_tokens > 0:
+                    model_id = get_or_create_model("gemini", model)
+                    log_model_usage(model_id, prompt_tokens, completion_tokens, 0.0)
+        except Exception as e:
+            logger.warning(f"Failed to log Gemini usage: {e}")
+            
+        return response.text
 
     @retry(
         stop=stop_after_attempt(5),
@@ -57,33 +71,47 @@ class LLMClient:
                 messages.append({"role": "user", "content": str(content)})
 
         # Route creative/formatting agents to V4-Flash with Thinking Disabled
-        if "flash" in model:
+        if "flash" in model.lower():
             response = self.deepseek_client.chat.completions.create(
                 model=model,
                 messages=messages,
                 extra_body={"thinking_mode": False, "thinking": {"type": "disabled"}},
             )
-            return response.choices[0].message.content
-
+            text = response.choices[0].message.content
         # Route mathematical/FFmpeg agents to V4-Pro with Thinking Default
-        elif "pro" in model:
+        elif "pro" in model.lower():
             response = self.deepseek_client.chat.completions.create(
                 model=model,
                 messages=messages,
             )
-            # The 'reasoning_content' is isolated. We only return the final validated output.
             text = response.choices[0].message.content
             if text:
                 text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
-            return text
-
         else:
             # Fallback
             response = self.deepseek_client.chat.completions.create(
                 model=model,
                 messages=messages,
             )
-            return response.choices[0].message.content
+            text = response.choices[0].message.content
+
+        # Tracking tokens and Cost
+        try:
+            if hasattr(response, 'usage') and response.usage:
+                prompt_tokens = response.usage.prompt_tokens
+                completion_tokens = response.usage.completion_tokens
+                
+                if "pro" in model.lower():
+                    cost = (prompt_tokens / 1_000_000) * 0.435 + (completion_tokens / 1_000_000) * 0.87
+                else:
+                    cost = (prompt_tokens / 1_000_000) * 0.14 + (completion_tokens / 1_000_000) * 0.28
+                    
+                model_id = get_or_create_model("deepseek", model)
+                log_model_usage(model_id, prompt_tokens, completion_tokens, cost)
+        except Exception as e:
+            logger.warning(f"Failed to log DeepSeek usage: {e}")
+
+        return text
 
     def generate_content(
         self, model: str, contents: list, config: types.GenerateContentConfig = None
@@ -116,7 +144,24 @@ class LLMClient:
                 )
             ):
                 logger.error(f"API Rate Limit or Quota Exhausted: {str(actual_error)}")
+                try:
+                    model_id = get_or_create_model("gemini", model)
+                    log_rate_limit(model_id, str(actual_error))
+                except Exception:
+                    pass
             else:
+                try:
+                    import openai
+                    if isinstance(actual_error, openai.RateLimitError):
+                        logger.error(f"DeepSeek API Rate Limit Hit: {str(actual_error)}")
+                        try:
+                            model_id = get_or_create_model("deepseek", model)
+                            log_rate_limit(model_id, str(actual_error))
+                        except Exception:
+                            pass
+                        raise actual_error
+                except ImportError:
+                    pass
                 logger.error(f"LLM Generation failed: {str(actual_error)}")
 
             raise actual_error

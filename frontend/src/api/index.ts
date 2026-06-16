@@ -129,6 +129,19 @@ export const api = {
     return res.json();
   },
 
+  // Metrics & Usage Dashboard
+  getMetricsUsage: async () => {
+    const res = await fetch(`${API_BASE_URL}/api/metrics/usage`);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
+  getDeepseekBalance: async () => {
+    const res = await fetch(`${API_BASE_URL}/api/metrics/balance`);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
   // WebSocket URL Helper
   getWebSocketUrl: (jobId: string) => {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';

@@ -38,10 +38,9 @@ def run_demucs(audio_path: str, out_dir: str):
 
     basename = os.path.splitext(os.path.basename(audio_path))[0]
     vocals_path = os.path.join(out_dir, "htdemucs", basename, "vocals.wav")
+    bg_path = os.path.join(out_dir, "htdemucs", basename, "no_vocals.wav")
 
-    if os.path.exists(vocals_path):
-        return vocals_path
-    return None
+    return vocals_path, bg_path
 
 
 def build_audio_mix_filter(

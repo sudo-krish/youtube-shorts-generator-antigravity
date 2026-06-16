@@ -234,6 +234,31 @@ async def get_models():
             ],
         }
 
+@app.get("/api/metrics/usage")
+async def get_metrics_usage():
+    from database import get_metrics_summary
+    return {"status": "success", "data": get_metrics_summary()}
+
+@app.get("/api/metrics/balance")
+async def get_deepseek_balance():
+    import os
+    import httpx
+    api_key = os.getenv("DEEPSEEK_API_KEY")
+    if not api_key:
+        return {"status": "error", "message": "DEEPSEEK_API_KEY not found"}
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://api.deepseek.com/user/balance",
+                headers={"Authorization": f"Bearer {api_key}", "Accept": "application/json"},
+                timeout=10.0
+            )
+            response.raise_for_status()
+            return {"status": "success", "data": response.json()}
+    except Exception as e:
+        logger.error(f"Failed to fetch DeepSeek balance: {e}")
+        return {"status": "error", "message": str(e)}
+
 
 @app.post("/api/analyze")
 async def analyze_video(request: AnalyzeRequest, background_tasks: BackgroundTasks):
@@ -618,7 +643,6 @@ async def render_worker():
                 )
                 try:
                     from pipeline.tree_generator import generate_asset_tree
-                    from database import update_render_status
 
                     final_outputs = generate_asset_tree(clips_data, out_file)
 
@@ -636,12 +660,8 @@ async def render_worker():
 
                 except Exception as e:
                     logger.error(f"Error in tree_generator: {e}")
-                    from database import update_render_status
-
                     update_render_status(task_id, "failed", str(e))
             else:
-                from database import update_render_status
-
                 update_render_status(task_id, "failed", "Missing clips")
 
         except Exception as e:

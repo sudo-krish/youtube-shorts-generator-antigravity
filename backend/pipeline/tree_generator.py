@@ -1,8 +1,8 @@
 import os
 import logging
 import subprocess
-from backend.pipeline.engine import execute_pipeline
-from backend.pipeline.qa_gate import run_qa_gate
+from pipeline.engine import execute_pipeline
+from pipeline.qa_gate import run_qa_gate
 
 logger = logging.getLogger(__name__)
 

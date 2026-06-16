@@ -5,10 +5,11 @@ import { ConfigurationPanel } from './components/upload/ConfigurationPanel';
 import { ExecutionView } from './components/execution/ExecutionView';
 import { RenderView } from './components/execution/RenderView';
 import { DatabaseViewer } from './components/DatabaseViewer';
+import { Dashboard } from './components/Dashboard';
 
 export const App = () => {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [wizardState, setWizardState] = useState<'UPLOAD' | 'CONFIG' | 'DB_VIEWER' | 'RENDER_VIEW'>('UPLOAD');
+  const [wizardState, setWizardState] = useState<'UPLOAD' | 'CONFIG' | 'DB_VIEWER' | 'RENDER_VIEW' | 'DASHBOARD'>('UPLOAD');
   const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
   const [currentVideoName, setCurrentVideoName] = useState<string | null>(null);
 
@@ -52,6 +53,10 @@ export const App = () => {
           setSelectedJobId(null);
           setWizardState('DB_VIEWER');
         }}
+        onOpenDashboard={() => {
+          setSelectedJobId(null);
+          setWizardState('DASHBOARD');
+        }}
       />
 
       {/* MAIN CANVAS */}
@@ -77,6 +82,10 @@ export const App = () => {
                 setWizardState('UPLOAD');
                 window.location.reload();
               }} />
+            )}
+            
+            {wizardState === 'DASHBOARD' && (
+              <Dashboard />
             )}
           </div>
         ) : wizardState === 'RENDER_VIEW' ? (
