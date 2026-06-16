@@ -8,13 +8,15 @@ interface SidebarProps {
   onSelectJob: (jobId: string | null) => void;
   onOpenDbViewer: () => void;
   onOpenDashboard: () => void;
+  onOpenGameManager: () => void;
 }
 
 export const Sidebar: FC<SidebarProps> = ({ 
   selectedJobId, 
   onSelectJob, 
   onOpenDbViewer,
-  onOpenDashboard 
+  onOpenDashboard,
+  onOpenGameManager
 }) => {
   const [jobs, setJobs] = useState<any[]>([]);
 
@@ -77,6 +79,16 @@ export const Sidebar: FC<SidebarProps> = ({
           <div className="flex items-center gap-3">
             <Activity className="w-5 h-5 text-aurora-cyan group-hover:animate-pulse" />
             <span className="font-bold text-white/90 group-hover:text-white">Metrics Dashboard</span>
+          </div>
+        </button>
+
+        <button 
+          onClick={onOpenGameManager}
+          className="w-full flex items-center justify-between p-3 rounded-xl border border-aurora-magenta/30 hover:border-aurora-magenta/60 bg-aurora-magenta/10 hover:bg-aurora-magenta/20 transition-all group"
+        >
+          <div className="flex items-center gap-3">
+            <Sparkles className="w-5 h-5 text-aurora-magenta group-hover:animate-pulse" />
+            <span className="font-bold text-white/90 group-hover:text-white">Game Context</span>
           </div>
         </button>
 

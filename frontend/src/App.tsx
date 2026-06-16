@@ -6,10 +6,11 @@ import { ExecutionView } from './components/execution/ExecutionView';
 import { RenderView } from './components/execution/RenderView';
 import { DatabaseViewer } from './components/DatabaseViewer';
 import { Dashboard } from './components/Dashboard';
+import { GameContextManager } from './components/GameContextManager';
 
 export const App = () => {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [wizardState, setWizardState] = useState<'UPLOAD' | 'CONFIG' | 'DB_VIEWER' | 'RENDER_VIEW' | 'DASHBOARD'>('UPLOAD');
+  const [wizardState, setWizardState] = useState<'UPLOAD' | 'CONFIG' | 'DB_VIEWER' | 'RENDER_VIEW' | 'DASHBOARD' | 'GAME_MANAGER'>('UPLOAD');
   const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
   const [currentVideoName, setCurrentVideoName] = useState<string | null>(null);
 
@@ -57,6 +58,10 @@ export const App = () => {
           setSelectedJobId(null);
           setWizardState('DASHBOARD');
         }}
+        onOpenGameManager={() => {
+          setSelectedJobId(null);
+          setWizardState('GAME_MANAGER');
+        }}
       />
 
       {/* MAIN CANVAS */}
@@ -86,6 +91,10 @@ export const App = () => {
             
             {wizardState === 'DASHBOARD' && (
               <Dashboard />
+            )}
+            
+            {wizardState === 'GAME_MANAGER' && (
+              <GameContextManager onBack={() => setWizardState('UPLOAD')} />
             )}
           </div>
         ) : wizardState === 'RENDER_VIEW' ? (

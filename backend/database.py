@@ -3,6 +3,7 @@ import os
 import time
 import json
 import logging
+import uuid
 
 logger = logging.getLogger(__name__)
 DB_PATH = os.path.join(os.path.dirname(__file__), "antigravity.db")
@@ -122,6 +123,35 @@ def init_db():
         cursor.execute("ALTER TABLE job_stages ADD COLUMN model_id INTEGER")
     except sqlite3.OperationalError:
         pass
+
+    # Create Game Management Tables
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS dim_game_types (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        game_genre TEXT UNIQUE
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS dim_games (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        game_type_id INTEGER,
+        game_name TEXT UNIQUE,
+        folder_path TEXT,
+        FOREIGN KEY (game_type_id) REFERENCES dim_game_types (id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS audio_keywords (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        game_type_id INTEGER,
+        keyword TEXT,
+        FOREIGN KEY (game_type_id) REFERENCES dim_game_types (id)
+    )
+    """)
+    
+    seed_game_data(conn)
 
     conn.commit()
     conn.close()
@@ -388,22 +418,27 @@ def get_database_dump():
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM videos")
-    videos = [dict(r) for r in cursor.fetchall()]
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    tables = [r["name"] for r in cursor.fetchall()]
 
-    cursor.execute("SELECT * FROM jobs")
-    jobs = [dict(r) for r in cursor.fetchall()]
-    for j in jobs:
-        try:
-            j["metadata"] = json.loads(j.get("metadata") or "{}")
-        except Exception:
-            j["metadata"] = {}
-
-    cursor.execute("SELECT * FROM job_stages")
-    stages = [dict(r) for r in cursor.fetchall()]
+    dump = {}
+    for table in tables:
+        if table.startswith("sqlite_"):
+            continue
+            
+        cursor.execute(f"SELECT * FROM {table}")
+        rows = [dict(r) for r in cursor.fetchall()]
+        
+        if table == "jobs":
+            for j in rows:
+                try:
+                    j["metadata"] = json.loads(j.get("metadata") or "{}")
+                except Exception:
+                    j["metadata"] = {}
+        dump[table] = rows
 
     conn.close()
-    return {"videos": videos, "jobs": jobs, "job_stages": stages}
+    return dump
 
 
 def clear_database():
@@ -483,8 +518,130 @@ def get_metrics_summary():
     rate_limits = [dict(r) for r in cursor.fetchall()]
     
     conn.close()
-    
     return {
         "usage": usage_data,
         "rate_limits": rate_limits
     }
+
+def seed_game_data(conn):
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM dim_game_types")
+    if cursor.fetchone()[0] > 0:
+        return # already seeded
+        
+    # Seed genres
+    genres = ["fps", "moba", "br", "generic"]
+    for genre in genres:
+        cursor.execute("INSERT INTO dim_game_types (game_genre) VALUES (?)", (genre,))
+    conn.commit()
+    
+    cursor.execute("SELECT id, game_genre FROM dim_game_types")
+    genre_map = {row[1]: row[0] for row in cursor.fetchall()}
+
+    keywords = {
+        "fps": ["loud gunshot or heavy gunfire", "weapon reloading mechanical click", "fast footsteps running", "planting bomb or defusing beeping", "heavy explosion blast", "sword slash or knife swing", "victory cheer or fanfare", "dying groan or scream"],
+        "moba": ["loud gunshot or heavy gunfire", "weapon reloading mechanical click", "fast footsteps running", "planting bomb or defusing beeping", "heavy explosion blast", "sword slash or knife swing", "victory cheer or fanfare", "dying groan or scream"],
+        "br": ["loud gunshot or heavy gunfire", "weapon reloading mechanical click", "fast footsteps running", "planting bomb or defusing beeping", "heavy explosion blast", "sword slash or knife swing", "victory cheer or fanfare", "dying groan or scream"],
+        "generic": ["loud gunshot or heavy gunfire", "weapon reloading mechanical click", "fast footsteps running", "planting bomb or defusing beeping", "heavy explosion blast", "sword slash or knife swing", "victory cheer or fanfare", "dying groan or scream"]
+    }
+    for genre, words in keywords.items():
+        genre_id = genre_map[genre]
+        for word in words:
+            cursor.execute("INSERT INTO audio_keywords (game_type_id, keyword) VALUES (?, ?)", (genre_id, word))
+
+    games = [
+        ("Valorant", "fps"),
+        ("CS:GO", "fps"),
+        ("Call of Duty", "fps"),
+        ("League of Legends", "moba"),
+        ("Dota 2", "moba"),
+        ("Apex Legends", "br"),
+        ("Fortnite", "br"),
+        ("PUBG", "br"),
+        ("Generic Game", "generic")
+    ]
+    
+    workspace_dir = os.path.join(os.path.dirname(__file__), "workspace")
+    games_dir = os.path.join(workspace_dir, "games")
+    os.makedirs(games_dir, exist_ok=True)
+
+    for game_name, genre in games:
+        genre_id = genre_map[genre]
+        game_uuid = str(uuid.uuid4())
+        folder_path = os.path.join("workspace", "games", game_uuid)
+        abs_folder_path = os.path.join(os.path.dirname(__file__), folder_path)
+        os.makedirs(abs_folder_path, exist_ok=True)
+        
+        context_file = os.path.join(abs_folder_path, f"context.txt")
+        with open(context_file, "w") as f:
+            f.write(f"Context and lore for {game_name}.\n")
+            
+        cursor.execute("INSERT INTO dim_games (game_type_id, game_name, folder_path) VALUES (?, ?, ?)", (genre_id, game_name, folder_path))
+    
+    conn.commit()
+
+def get_supported_games():
+    conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT g.id, g.game_name, t.game_genre, t.id as game_type_id, g.folder_path
+        FROM dim_games g
+        JOIN dim_game_types t ON g.game_type_id = t.id
+        ORDER BY g.game_name ASC
+    ''')
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+def get_game_types():
+    conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, game_genre FROM dim_game_types ORDER BY game_genre ASC')
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+def get_audio_keywords_by_game(game_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT k.keyword 
+        FROM audio_keywords k
+        JOIN dim_games g ON g.game_type_id = k.game_type_id
+        WHERE g.id = ?
+    ''', (game_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [row[0] for row in rows]
+
+def get_game_context_path(game_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT folder_path FROM dim_games WHERE id = ?', (game_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return os.path.join(os.path.dirname(__file__), row[0], 'context.txt')
+    return None
+
+def create_game(game_name: str, game_type_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    game_uuid = str(uuid.uuid4())
+    folder_path = os.path.join("workspace", "games", game_uuid)
+    abs_folder_path = os.path.join(os.path.dirname(__file__), folder_path)
+    os.makedirs(abs_folder_path, exist_ok=True)
+    
+    context_file = os.path.join(abs_folder_path, f"context.txt")
+    with open(context_file, "w") as f:
+        f.write(f"Context and lore for {game_name}.\n")
+        
+    cursor.execute(
+        "INSERT INTO dim_games (game_type_id, game_name, folder_path) VALUES (?, ?, ?)",
+        (game_type_id, game_name, folder_path)
+    )
+    conn.commit()
+    conn.close()

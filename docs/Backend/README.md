@@ -61,13 +61,13 @@ The executor module.
   - `text/`: Overlays including WhisperX word-by-word subtitles. Subtitles now feature ASS Macros for dynamic **scaling and popping** text animations (Alex Hormozi style).
 
 ## Database & Storage Architecture
-- **Workspace Directory**: Video files, pipeline segments, and AI proxy videos are all dynamically generated and stored in `backend/workspace/`.
+- **Workspace Directory**: Video files and pipeline segments are all dynamically generated and stored in `backend/workspace/`.
 - **Relational Database**: State tracking is managed by a centralized SQLite database (`backend/runs.db` via `database.py`):
   - `videos`: Tracks physical files on disk via a `video_id` UUID.
   - `jobs`: Tracks execution Sessions, linking a `job_id` to a `video_id`, and safely stores job `metadata` as JSON.
   - `job_stages`: Tracks the hyper-granular states of the AI Assembly line (start times, end times, chunk logs, statuses).
 - **Execution Logs**: Every job automatically writes isolated, cleanly formatted execution logs to `backend/outputs/logs/{session_id}.log`. All agent-level logs are routed through the global `"ai_director"` logger for highly detailed, readable outputs without UUID spam.
-- **Redrive Capability**: When an agent fails (e.g. 503 from Gemini), you can safely redrive via `POST /api/redrive/{job_id}`. The redrive queries the `job_stages` table to determine completed steps and loads their cached outputs from `resume_state`. The state caches the output of *every* agent, including the Builder's final JSON schema, ensuring zero token waste on successfully completed agents.
+- **Redrive Capability**: When an agent fails (e.g. 503 from DeepSeek), you can safely redrive via `POST /api/redrive/{job_id}`. The redrive queries the `job_stages` table to determine completed steps and loads their cached outputs from `resume_state`. The state caches the output of *every* agent, including the Builder's final JSON schema, ensuring zero token waste on successfully completed agents.
 - **Admin Control**: The backend exposes `GET /api/db/dump` and `DELETE /api/db/clear` to fetch the complete DB graph or perform a global wipe (which recursively cleans `outputs/agents/` and `workspace/` while leaving static assets untouched).
 
 ## Data Flow

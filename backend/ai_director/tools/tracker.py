@@ -96,9 +96,14 @@ def track_subject(video_path: str, fps: int = 1) -> list:
             current_time = frame_count / video_fps
             timestamps.append(current_time)
 
-            # Run YOLO prediction
+            # Run YOLO prediction optimized for CPU to prevent NMS timeout
             results = model.predict(
-                frame, verbose=False, classes=[0]
+                frame, 
+                verbose=False, 
+                classes=[0], 
+                imgsz=320, 
+                conf=0.25, 
+                max_det=5
             )  # class 0 is 'person'
 
             best_x = default_x

@@ -34,7 +34,7 @@ INSTRUCTIONS:
 1. Identify all viable segments from the context log.
 2. Incorporate the Pre-Generated Web Context to make the scripts highly relevant to the specified Region and Game.
 3. For each viable segment, write 1 to 3 DIFFERENT narrative scripts (variants) adhering to the strict tone instructions.
-4. Output a structured textual pitch for the Director.
+4. Output a structured textual pitch for the Director. YOU MUST EXACTLY PRESERVE THE "Focus:[start_x, end_x]" DATA FROM THE OBSERVER FOR EVERY PHASE. DO NOT LOSE THIS SPATIAL DATA.
 5. Also append a "Core Emotional Anchor" for each script.
 
 Example Pitch Output:
@@ -42,7 +42,7 @@ VARIANT: The 1v3 Site Anchor
 TEMPLATE: The Clutch
 EMOTIONAL ANCHOR: Desperation turning into systematic dismantling
 PHASES:
-- Phase 1 (Setup): 15.0 - 20.0 
+- Phase 1 (Setup): 15.0 - 20.0 Focus:[400, 1200]
   Narrative: Player is left completely alone on B main as the rest of the team falls. The silence builds anticipation.
   Caption: "My whole team died and left me alone on B site 😭"
 ...
@@ -55,6 +55,21 @@ class ScriptWriterAgent:
             "Script Writer Agent generating narrative templates with web context..."
         )
         client = LLMClient()
+        
+        game_id = metadata.get("game_id")
+        game_lore = ""
+        if game_id:
+            try:
+                from database import get_game_context_path
+                import os
+                path = get_game_context_path(int(game_id))
+                if path and os.path.exists(path):
+                    with open(path, "r") as f:
+                        game_lore = f.read().strip()
+            except Exception as e:
+                logger.error(f"Failed to load game lore for game_id {game_id}: {e}")
+                
+        lore_section = f"\n=== GAME LORE & CONTEXT ===\n{game_lore}\n" if game_lore else ""
 
         prompt = SCRIPTWRITER_PROMPT.format(
             game_name=metadata.get("game_name", "Unknown"),
@@ -63,6 +78,8 @@ class ScriptWriterAgent:
             region=metadata.get("region", "Global"),
             web_trends=web_trends,
         )
+        
+        prompt += lore_section
 
         return client.generate_content(
             model=get_config()["models"]["scriptwriter"],

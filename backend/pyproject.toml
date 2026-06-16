@@ -20,6 +20,11 @@ dependencies = [
     "demucs>=4.0.1",
     "tenacity>=9.1.4",
     "openai>=2.41.1",
+    "onnxruntime>=1.26.0",
+    "huggingface-hub>=0.36.2",
+    "tokenizers>=0.22.2",
+    "transformers>=4.57.6",
+    "soundfile>=0.13.1",
 ]
 
 

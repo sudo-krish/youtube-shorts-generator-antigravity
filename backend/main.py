@@ -3,6 +3,11 @@
 import os
 import json
 import asyncio
+import torch
+
+# Issue 8: VAD TF32 Underutilization
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
 from fastapi import (
     FastAPI,
     UploadFile,
@@ -233,6 +238,54 @@ async def get_models():
                 "gemini-1.5-pro",
             ],
         }
+
+@app.get("/api/games")
+async def get_games():
+    from database import get_supported_games, get_game_types
+    try:
+        games = get_supported_games()
+        types = get_game_types()
+        return {"status": "success", "games": games, "types": types}
+    except Exception as e:
+        logger.error(f"Failed to fetch games: {e}")
+        return {"status": "error", "message": str(e)}
+
+class GameCreate(BaseModel):
+    game_name: str
+    game_type_id: int
+
+@app.post("/api/games")
+async def create_game_endpoint(game: GameCreate):
+    from database import create_game
+    try:
+        create_game(game.game_name, game.game_type_id)
+        return {"status": "success"}
+    except Exception as e:
+        logger.error(f"Failed to create game: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/games/{game_id}/context")
+async def get_game_context(game_id: int):
+    from database import get_game_context_path
+    path = get_game_context_path(game_id)
+    if not path or not os.path.exists(path):
+        return {"status": "success", "context": ""}
+    with open(path, "r") as f:
+        content = f.read()
+    return {"status": "success", "context": content}
+
+class GameContextUpdate(BaseModel):
+    context: str
+
+@app.post("/api/games/{game_id}/context")
+async def update_game_context(game_id: int, update: GameContextUpdate):
+    from database import get_game_context_path
+    path = get_game_context_path(game_id)
+    if not path:
+        return {"status": "error", "message": "Game not found"}
+    with open(path, "w") as f:
+        f.write(update.context)
+    return {"status": "success"}
 
 @app.get("/api/metrics/usage")
 async def get_metrics_usage():

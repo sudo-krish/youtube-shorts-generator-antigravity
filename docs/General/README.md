@@ -48,7 +48,7 @@ cd backend
 uv sync
 uv run uvicorn main:app --reload --port 8000
 ```
-*(Requires `GEMINI_API_KEY` in environment)*
+*(Requires `DEEPSEEK_API_KEY` in environment)*
 
 ### Frontend (React + Vite)
 ```bash

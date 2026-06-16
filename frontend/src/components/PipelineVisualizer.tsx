@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, CircleDashed, XCircle, ArrowRight, Activity, Code, Server, Eye, PenTool, Film, Settings } from 'lucide-react';
+import { CheckCircle2, CircleDashed, XCircle, ArrowRight, Activity, Code, Server, Eye, PenTool, Film, Settings, Cpu, Image, Move, Combine } from 'lucide-react';
 
 interface StageData {
     status: string;
@@ -14,6 +14,10 @@ interface PipelineVisualizerProps {
 }
 
 const AGENT_STEPS = [
+    { id: 'ast_transformer', label: 'Audio (AST)', icon: Cpu },
+    { id: 'siglip_transformer', label: 'Visual (SigLIP)', icon: Image },
+    { id: 'spatial_transformer', label: 'Spatial Flow', icon: Move },
+    { id: 'matrix_merging', label: 'Matrix Merge', icon: Combine },
     { id: 'observer', label: 'Observer', icon: Eye },
     { id: 'scriptwriter', label: 'Scriptwriter', icon: PenTool },
     { id: 'director', label: 'Director', icon: Activity },

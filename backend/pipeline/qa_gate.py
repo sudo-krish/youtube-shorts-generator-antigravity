@@ -39,6 +39,39 @@ def validate_structure(video_path: str) -> bool:
             logger.error("QA Gate Failed: Missing audio stream")
             return False
 
+        # Issue 16: QA Gate Audio False Positives - RMS check
+        try:
+            cmd_rms = [
+                "ffprobe", "-f", "lavfi", "-i", f"amovie={video_path},astats=metadata=1:reset=1",
+                "-show_entries", "frame=pkt_pts_time:frame_tags=lavfi.astats.Overall.RMS_level",
+                "-of", "json"
+            ]
+            rms_res = subprocess.run(cmd_rms, capture_output=True, text=True, check=True)
+            rms_data = json.loads(rms_res.stdout)
+            
+            # Extract mean RMS across frames
+            rms_levels = []
+            for frame in rms_data.get("frames", []):
+                tags = frame.get("tags", {})
+                if "lavfi.astats.Overall.RMS_level" in tags:
+                    level_str = tags["lavfi.astats.Overall.RMS_level"]
+                    if level_str != "-inf":
+                        rms_levels.append(float(level_str))
+                        
+            if rms_levels:
+                avg_rms = sum(rms_levels) / len(rms_levels)
+                if avg_rms <= -50.0:
+                    logger.error(f"QA Gate Failed: Audio RMS is extremely low ({avg_rms:.2f}dB)")
+                    return False
+                else:
+                    logger.info(f"QA Gate Passed Audio Check: RMS {avg_rms:.2f}dB")
+            else:
+                logger.warning("QA Gate Warning: Could not calculate Audio RMS levels.")
+                
+        except Exception as e:
+            logger.error(f"QA Gate Failed: Audio RMS FFprobe check failed: {e}")
+            return False
+
         return True
     except Exception as e:
         logger.error(f"QA Gate Failed: FFprobe exception: {e}")

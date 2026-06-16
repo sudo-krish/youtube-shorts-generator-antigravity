@@ -53,10 +53,12 @@ def _build_zoompan_expr(meta: dict) -> str:
         for t in punch_ins:
             expr = f"if(lt(in_time,{t}), 1.0, if(lt(in_time,{t + 0.5}), 1.0+0.15*(0.5-0.5*cos(PI*((in_time-{t})/0.5))), 1.15))"
             zoom_exprs.append(expr)
-        if len(zoom_exprs) > 1:
-            zoom_expr = f"max({','.join(zoom_exprs)}) + (in_time*0.001)"
-        else:
-            zoom_expr = f"({zoom_exprs[0]}) + (in_time*0.001)"
+            
+        final_max = zoom_exprs[0]
+        for expr in zoom_exprs[1:]:
+            final_max = f"max({final_max}, {expr})"
+            
+        zoom_expr = f"({final_max}) + (in_time*0.001)"
     return zoom_expr
 
 
@@ -74,11 +76,8 @@ def _build_visual_filtergraph(
     start_focus_x = meta.get("start_focus_x", orig_w / 2)
     end_focus_x = meta.get("end_focus_x", orig_w / 2)
 
-    start_val = max(0, min(orig_w - crop_w, int(start_focus_x - (crop_w / 2))))
-    end_val = max(0, min(orig_w - crop_w, int(end_focus_x - (crop_w / 2))))
-
-    # Cosine crop panning
-    crop_expr = f"{start_val}+({end_val}-{start_val})*(0.5-0.5*cos(PI*(t/{duration})))"
+    half_crop = crop_w / 2
+    crop_expr = f"max(0, min({orig_w}-{crop_w}, ({start_focus_x} - {half_crop}) + ({end_focus_x} - {start_focus_x}) * (0.5 - 0.5 * cos(PI * (t / {duration})))))"
 
     handle_start = meta.get("handle_start", 0.0)
     visual_duration = meta.get("duration", duration)
@@ -96,14 +95,14 @@ def _build_visual_filtergraph(
     v_filters = [
         f"trim=start={handle_start}:duration={visual_duration}",
         "setpts=PTS-STARTPTS",
-        f"crop={crop_w}:{crop_h}:'{crop_expr}':0",
+        f"crop={crop_w}:{crop_h}:'{crop_expr}':'(ih-{crop_h})/2'",
     ]
 
     if is_hook:
         v_filters = [
             f"trim=start={handle_start}:duration={hook_duration}",
             "setpts=PTS-STARTPTS",
-            f"crop={crop_w}:{crop_h}:'{crop_expr}':0",
+            f"crop={crop_w}:{crop_h}:'{crop_expr}':'(ih-{crop_h})/2'",
         ]
         visual_duration = hook_duration
 
@@ -461,8 +460,23 @@ def _apply_final_mix_and_encode(
         cmd_mix, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     )
 
+    # Extract raw game audio (un-demucsed) by mixing the bg and voc back together for WhisperX
+    raw_game_audio_wav = output_path.replace(".mp4", "_raw_game.wav")
+    cmd_raw = [
+        "ffmpeg", "-y",
+        "-i", temp_bg,
+        "-i", temp_voc,
+        "-filter_complex", "[0:a][1:a]amix=inputs=2:duration=longest:normalize=0[aout]",
+        "-map", "[aout]",
+        raw_game_audio_wav
+    ]
+    subprocess.run(cmd_raw, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
     ass_file = output_path.replace(".mp4", "_captions.ass")
-    run_whisperx(final_mix_wav, ass_file)
+    run_whisperx(raw_game_audio_wav, ass_file)
+    
+    if os.path.exists(raw_game_audio_wav):
+        os.remove(raw_game_audio_wav)
 
     logger.info("Stage 4: Final Assembly with Dynamic Encoding...")
     encoder_profile = get_encoder_profile()

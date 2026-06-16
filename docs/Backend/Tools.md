@@ -20,13 +20,7 @@ The tools are located in `backend/ai_director/tools/`.
 
 ## Core Pre-Processors
 
-### `tracker.py` (AI Object Tracking & CV)
-- **Purpose**: Tracks the subject (e.g., the player's crosshair or character) to generate dynamic spatial coordinates (`start_x`, `end_x`) for cropped portrait rendering.
-- **Mechanism**:
-  - Uses a lightweight **YOLOv8** model (`yolov8n.pt`) via the `ultralytics` library.
-  - Extracts frames at 1 FPS to scan for `class 0` (person/subject).
-  - Calculates the bounding box center `X`.
-  - **Cinematic Smoothing**: Applies a predictive `cv2.KalmanFilter(2, 1)` to the raw coordinates. This smooths out micro-jitters and predicts subject trajectory, creating a true cinematic camera pan that perfectly tracks action without giving the viewer motion sickness.
+
 
 ### `audio_hype.py` (Audio Spike Detection)
 - **Purpose**: Prevents the Observer Agent from missing crucial moments in a long VOD by giving it exact timestamps where "loud" things happen (gunfights, screaming, clutches).

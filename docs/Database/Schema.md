@@ -26,6 +26,9 @@ erDiagram
     VIDEOS ||--o{ JOBS : "analyzed_in"
     JOBS ||--o{ JOB_STAGES : "has_agent_steps"
     JOBS ||--o{ JOB_RENDERS : "triggers_renders"
+    
+    DIM_GAME_TYPES ||--o{ DIM_GAMES : "has_games"
+    DIM_GAME_TYPES ||--o{ AUDIO_KEYWORDS : "has_keywords"
 
     VIDEOS {
         string video_id PK
@@ -94,27 +97,50 @@ erDiagram
         float reset_at
         string context
     }
+    
+    DIM_GAME_TYPES {
+        int id PK
+        string game_genre
+    }
+    
+    DIM_GAMES {
+        int id PK
+        int game_type_id FK
+        string game_name
+        string folder_path
+    }
+    
+    AUDIO_KEYWORDS {
+        int id PK
+        int game_type_id FK
+        string keyword
+    }
 ```
 
 ## 1. The Videos and Jobs Tables
 - **`videos`**: Acts as the physical asset registry. It purely tracks what exists in the `workspace/` directory.
-- **`jobs`**: The overarching session controller. The `metadata` column stores the global context (Game, Vibe, Region) that the user configures in the React UI.
+- **`jobs`**: The overarching session controller. The `metadata` column stores the global context (Game ID, Player Skill, Region) that the user configures in the React UI.
 
-## 2. Granular State Tracking (`job_stages`)
+## 2. Game Context Architecture (New)
+- **`dim_game_types`**: Stores the high-level genres (FPS, MOBA, BR, etc.).
+- **`dim_games`**: Stores the actual game titles (Valorant, CS:GO) mapped to their genres. Also stores a `folder_path` pointing to a physical text file where custom lore and context is written.
+- **`audio_keywords`**: Maps specific audio tags (e.g., "defusing bomb", "glider deployment") to genres, so the Audio CLAP transformer knows exactly what to listen for depending on the game selected.
+
+## 3. Granular State Tracking (`job_stages`)
 This is the most critical table for the backend. Because the pipeline splits a 10-minute video into multiple overlapping chunks, and then runs 6 distinct agents per chunk, we track state at the `(job_id, chunk_id, stage_name)` grain. Each stage is directly linked to the specific LLM used via the `model_id` foreign key.
 
-## 3. Cost & Rate Limit Monitoring
-To accurately track LLM consumption across Gemini and DeepSeek:
+## 4. Cost & Rate Limit Monitoring
+To accurately track LLM consumption across DeepSeek:
 - **`models`**: Tracks provider information and dynamic pricing tiers per 1M tokens.
 - **`model_usage`**: Logs every generated completion along with token counts and calculated cost per job task.
 - **`rate_limits`**: Persists HTTP 429 timeouts to provide backoff transparency to the orchestrator.
 
-## 3. The Redrive Engine (Token Conservation)
-When the React UI triggers `POST /api/redrive/{job_id}` after a Gemini timeout:
+## 5. The Redrive Engine (Token Conservation)
+When the React UI triggers `POST /api/redrive/{job_id}` after a DeepSeek timeout:
 1. The backend queries all `completed` rows from `job_stages`.
 2. It reads the physically cached text files from `outputs/agents/{job_id}/{chunk_id}/{stage_name}.txt`.
 3. It rebuilds the Python `resume_state` dictionary entirely from the database and cache.
 4. The orchestrator loop skips any stage that exists in the `resume_state`, instantly picking up exactly where it failed without making duplicate LLM calls.
 
-## 4. Admin Diagnostics
+## 6. Admin Diagnostics
 The API exposes `GET /api/db/dump` to serialize these tables directly into the Frontend's Database Viewer component for real-time debugging. A `clear_database()` hook is also provided to safely nuke tables and cleanly wipe all `.mp4` caches.

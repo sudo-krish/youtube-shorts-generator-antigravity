@@ -40,9 +40,8 @@ Once all chunks are pre-processed into isolated `.mp4` clips, they are stitched 
 - **Syntax Safe-Guards**: The builder safely strips trailing semi-colons to prevent FFmpeg crashes if no BGM/SFX tracks are scheduled for a specific variant.
 - **LUFS Mastering**: A `loudnorm=I=-14:LRA=11:TP=-1.5` filter is appended to precisely master the audio to YouTube Shorts spec (-14 LUFS).
 
-### Stage 3: WhisperX Caption Generation
 ### Stage 3: WhisperX Caption Generation & Safety Locks
-- The stitched, mixed audio is passed to `run_whisperx()`.
+- The `temp_bg` and `temp_voc` tracks are physically remixed into a pure `raw_game_audio.wav` track to bypass any aggressive Demucs gating. This un-demucsed audio is passed to `run_whisperx()`.
 - WhisperX runs a high-precision ASR model on CUDA, aligns word-level timestamps, and generates an Advanced SubStation Alpha (`.ass`) file with dynamic subtitle animations.
 - **GPU Concurrency Safe-Guards**: WhisperX is wrapped in a strict `threading.Lock()` (`GPU_LOCK`). This ensures that multiple asynchronous jobs don't simultaneously hit the VRAM limit, preventing CUDA out-of-memory crashes on hardware with a 6GB VRAM ceiling. `torch.cuda.empty_cache()` is also explicitly called upon completion.
 - **Language & Safe Zone Enforcement**: The transcription strictly enforces `language="en"` to prevent background noise hallucination (e.g., detecting "haw"). Furthermore, the subtitle `MarginV` is bounded to `450` pixels to avoid clashing with standard YouTube Shorts UI layouts.

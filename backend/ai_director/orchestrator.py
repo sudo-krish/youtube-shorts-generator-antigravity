@@ -17,7 +17,6 @@ from .tools.web_scraper import fetch_regional_trends
 from .tools.sfx_indexer import index_local_sfx
 from .tools.audio_indexer import index_local_music
 from .tools.math_validator import validate_editor_math
-from .tools.tracker import track_subject
 from pipeline.capabilities.effects.registry import get_capabilities_menu
 from database import log_stage
 
@@ -90,33 +89,6 @@ class AIOrchestrator:
         logger.info(f"Generated {len(chunks)} chunks.")
         return chunks
 
-    def create_ai_proxy(
-        self, input_mp4: str, job_id: str, job_logger: logging.Logger = logger
-    ) -> str:
-        safe_name = str(uuid.uuid4())
-        proxy_path = os.path.join(WORKSPACE_DIR, f"{job_id}_{safe_name}_proxy.mp4")
-
-        job_logger.info(
-            f"Generating lightweight AI Proxy for {os.path.basename(input_mp4)}..."
-        )
-        cmd = [
-            "ffmpeg",
-            "-y",
-            "-i",
-            input_mp4,
-            "-vf",
-            "fps=1,scale=-2:480",
-            "-c:v",
-            "libx264",
-            "-crf",
-            "35",
-            "-preset",
-            "ultrafast",
-            "-an",
-            proxy_path,
-        ]
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return proxy_path
 
     def run_multi_agent_pipeline(
         self,
@@ -175,35 +147,57 @@ class AIOrchestrator:
             save_state(step_name, result, model_id)
             return result
 
-        proxy_path = None
-
         try:
-            # Stage 1: Observer
+            # Pre-Context (Only re-run if observer isn't cached)
             if not get_state("observer"):
-                if job_id:
-                    log_stage(
-                        job_id,
-                        "observer",
-                        "running",
-                        "Generating Pre-Context: AI Tracking, Audio Hype Map & OCR...",
-                        chunk_id=chunk_idx,
-                    )
                 audio_spikes = detect_audio_spikes(chunk_path, top_n=5)
                 ocr_dumps = read_ocr_from_video(chunk_path, audio_spikes)
-                tracking_data = track_subject(chunk_path, fps=1)
-                proxy_path = self.create_ai_proxy(chunk_path, job_id, job_logger)
             else:
-                audio_spikes, ocr_dumps, tracking_data = [], {}, []
+                audio_spikes, ocr_dumps = [], {}
+
+            # Transformers (Local Models mapped to stages)
+            from ai_director.transformers.matrix_builder import SemanticMatrixBuilder
+            
+            game_id = self.metadata.get("game_id")
+            builder = SemanticMatrixBuilder(chunk_path, game_id=game_id)
+            
+            audio_matrix = execute_stage(
+                "ast_transformer",
+                "AST Audio Transformer processing local spectrograms...",
+                builder.build_audio_matrix,
+                1
+            )
+            visual_matrix = execute_stage(
+                "siglip_transformer",
+                "SigLIP Visual Transformer classifying frames...",
+                builder.build_visual_matrix,
+                3
+            )
+            spatial_matrix = execute_stage(
+                "spatial_transformer",
+                "Optical Flow calculating dense spatial movement...",
+                builder.build_spatial_matrix,
+                3
+            )
+            
+            semantic_matrix = execute_stage(
+                "matrix_merging",
+                "Concatenating and merging Transformer Timelines...",
+                builder.merge_matrices,
+                audio_matrix,
+                visual_matrix,
+                spatial_matrix
+            )
 
             context = execute_stage(
                 "observer",
-                "Observer Agent reading video context...",
+                "Observer Agent reading Semantic Matrix...",
                 self.observer.execute,
-                proxy_path,
+                chunk_path,
                 self.metadata,
                 audio_spikes,
                 ocr_dumps,
-                tracking_data,
+                semantic_matrix,
             )
 
             # Stage 2: Scriptwriter
@@ -294,11 +288,7 @@ class AIOrchestrator:
             return shorts, did_work
 
         finally:
-            try:
-                if proxy_path and os.path.exists(proxy_path):
-                    os.remove(proxy_path)
-            except Exception as e:
-                job_logger.warning(f"Error during cleanup: {e}")
+            pass
 
     def orchestrate_pipeline(self, job_id: str = None, resume_state: dict = None):
         job_logger = logging.getLogger("ai_director")

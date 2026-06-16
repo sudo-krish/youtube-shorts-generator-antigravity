@@ -24,7 +24,7 @@ sequenceDiagram
     participant UI as React Frontend
     participant API as FastAPI Backend
     participant Worker as Async Task Queue
-    participant AI as Gemini 2.5 Multi-Agent System
+    participant AI as DeepSeek + Semantic Matrix System
     participant FFmpeg as FFmpeg Render Engine
     participant DB as SQLite DB
 
@@ -56,7 +56,7 @@ A Directed Acyclic Graph (DAG) pipeline. To prevent "Lost in the Middle" LLM amn
 4. Editor merges the phases and the vibe to create the technical breakdown.
 5. Specialist calculates exact frame arithmetic.
 6. Builder takes ONLY the Specialist's output to format final JSON.
-The pipeline relies completely on deterministic pre-processors (Audio Hype Map, OCR, YOLOv8) to provide a ground-truth Context Engine before sending a single prompt to Gemini.
+The pipeline relies completely on deterministic pre-processors (Audio Hype Map, OCR, YOLOv8) and the `SemanticMatrixBuilder` (AST Audio + SigLIP + Optical Flow) to provide a ground-truth Context Engine before sending a single prompt to DeepSeek.
 
 ## 4. Asset Engine Layer (Bootstrapping & JIT)
 The pipeline employs a **Two-Tier Asset Strategy** to bypass heavy vector database dependencies:

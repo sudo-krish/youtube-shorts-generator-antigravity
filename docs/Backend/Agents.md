@@ -19,7 +19,7 @@ All 6 specialized agents inherit from a unified `LLMClient` (`backend/ai_directo
 
 ## 1. Observer Agent (`agents/observer.py`)
 - **Role**: Esports Commentator & Analyst.
-- **Inputs**: The physical `gemini-2.5-flash` uploaded AI proxy video + Audio Hype Map + Killfeed OCR + YOLOv8 Tracking Data. (Note: The Observer *must* remain on a multimodal Gemini model as DeepSeek is text-native).
+- **Inputs**: The `SemanticMatrixBuilder` JSON Array (AST Audio + SigLIP Visual + Dense Optical Flow) + Audio Hype Map + Killfeed OCR + YOLOv8 Tracking Data. (Note: The Observer is now completely text-native and driven by DeepSeek reading the Semantic Matrix; it no longer relies on a multimodal Gemini model).
 - **Outputs**: Extremely dense, chronological narrative text log.
 - **Prompt Logic**: Instructed to NEVER hallucinate kills. It uses the tracking data to assign `[start_x, end_x]` focus coordinates to key moments.
 

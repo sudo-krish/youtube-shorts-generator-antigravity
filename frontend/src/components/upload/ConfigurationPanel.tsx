@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { Gamepad2, Globe, Target, ArrowRight, Video, CheckCircle2, Loader2, Info } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Gamepad2, Globe, ArrowRight, Video, CheckCircle2, Loader2, Info } from 'lucide-react';
 import { ModelSettings } from '../ModelSettings';
-import { api } from '../../api';
+import { api, API_BASE_URL } from '../../api';
 
 interface ConfigurationPanelProps {
   videoId: string;
@@ -11,18 +11,32 @@ interface ConfigurationPanelProps {
 }
 
 export const ConfigurationPanel = ({ videoId, videoName, onAnalyzeStarted, onCancel }: ConfigurationPanelProps) => {
-  const [gameName, setGameName] = useState('Valorant');
-  const [gameType, setGameType] = useState('Tactical Shooter');
+  const [selectedGameId, setSelectedGameId] = useState<string>('');
+  const [games, setGames] = useState<any[]>([]);
   const [playerSkill, setPlayerSkill] = useState('High/Pro Level');
   const [region, setRegion] = useState('North America');
   const [isInitializing, setIsInitializing] = useState(false);
 
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/games`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'success' && data.games && data.games.length > 0) {
+          setGames(data.games);
+          setSelectedGameId(data.games[0].id.toString());
+        }
+      })
+      .catch(err => console.error("Failed to load games", err));
+  }, []);
+
   const handleStart = async () => {
     setIsInitializing(true);
     try {
+      const selectedGame = games.find(g => g.id.toString() === selectedGameId);
       const data = await api.analyzeVideo(videoId, { 
-        game: gameName, 
-        game_type: gameType, 
+        game_id: selectedGame?.id,
+        game_name: selectedGame?.game_name,
+        game_type: selectedGame?.game_genre,
         player_skill: playerSkill, 
         region 
       });
@@ -64,31 +78,16 @@ export const ConfigurationPanel = ({ videoId, videoName, onAnalyzeStarted, onCan
           <div className="space-y-6">
             <div className="space-y-2">
               <label className="text-xs font-bold text-white/40 uppercase tracking-widest flex items-center gap-2">
-                <Gamepad2 className="w-4 h-4" /> Game Name
-              </label>
-              <input 
-                type="text" 
-                value={gameName} 
-                onChange={e => setGameName(e.target.value)}
-                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-aurora-cyan/50 transition-colors"
-                placeholder="e.g., Valorant, Minecraft..."
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-white/40 uppercase tracking-widest flex items-center gap-2">
-                <Target className="w-4 h-4" /> Game Genre
+                <Gamepad2 className="w-4 h-4" /> Game
               </label>
               <select 
-                value={gameType} 
-                onChange={e => setGameType(e.target.value)}
+                value={selectedGameId} 
+                onChange={e => setSelectedGameId(e.target.value)}
                 className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-aurora-cyan/50 transition-colors appearance-none"
               >
-                <option>Tactical Shooter (CS:GO, Valorant)</option>
-                <option>Battle Royale (Apex, Fortnite)</option>
-                <option>MOBA (League, Dota 2)</option>
-                <option>Sandbox (Minecraft, Roblox)</option>
-                <option>Other</option>
+                {games.map(g => (
+                  <option key={g.id} value={g.id}>{g.game_name} ({g.game_genre})</option>
+                ))}
               </select>
             </div>
           </div>

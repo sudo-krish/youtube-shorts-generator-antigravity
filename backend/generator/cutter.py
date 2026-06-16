@@ -11,8 +11,11 @@ from ai_director.tools.keyframe_mapper import get_previous_iframe
 logger = logging.getLogger(__name__)
 
 
+import time
+
 def _prep_clip(
     phase: dict,
+    previous_phase: dict | None,
     video_path: str,
     video_id: str,
     variant_id: str,
@@ -22,8 +25,12 @@ def _prep_clip(
     original_start_t = float(phase["start_time"])
     end_t = float(phase["end_time"])
 
-    # 3-Second Temporal Padding Handles
     HANDLE_DURATION = 3.0
+    
+    # Issue 7: Contiguous phases should not have padded handles
+    if previous_phase and float(phase["start_time"]) == float(previous_phase["end_time"]):
+        HANDLE_DURATION = 0.0
+
     padded_start_t = max(0.0, original_start_t - HANDLE_DURATION)
     padded_end_t = end_t + HANDLE_DURATION
 
@@ -116,11 +123,14 @@ def generate_files_from_json(video_path: str, timeline_json: dict) -> list:
         )
 
         clip_paths = []
+        previous_phase = None
         for idx, phase in enumerate(phases):
             clip_path = _prep_clip(
-                phase, video_path, video_id, variant_id, idx, proj_dir
+                phase, previous_phase, video_path, video_id, variant_id, idx, proj_dir
             )
             clip_paths.append(clip_path)
+            previous_phase = phase
+            time.sleep(0.1)  # Issue 13: Unbounded Concurrent Chunk Slicing sleep
 
         generated_variants.append(
             {

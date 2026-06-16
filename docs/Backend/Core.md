@@ -27,6 +27,9 @@ The primary entry point for the FastAPI application.
   - `POST /api/redrive/{job_id}`: Allows recovering a failed pipeline. It reads `job_stages` from the database, loads the `resume_state` cache from completed agents, and skips re-running expensive LLM API calls.
   - `POST /api/generate-short`: Dispatches a background rendering job. It loads the `_segments.json` blueprint and pushes tasks onto an `asyncio.Queue` worker (`render_worker()`).
   - `POST /api/jobs/{job_id}/render/batch`: Triggers batch rendering for multiple short variants simultaneously.
+  - `GET /api/games`: Returns a list of supported games and game genres.
+  - `POST /api/games`: Creates a new supported game and provisions its context workspace.
+  - `GET /api/games/{id}/context` & `POST /api/games/{id}/context`: Fetches and updates the physical `context.txt` lore file for a specific game, which is subsequently injected into the Scriptwriter prompt.
 - **Workers**: Runs a persistent `render_worker()` async task to process FFmpeg rendering tasks sequentially.
 
 ### `ai_director/schemas.py`
@@ -38,5 +41,5 @@ Defines the rigid **Pydantic models** that force the LLM (specifically the Build
 
 ### `ai_director/config_manager.py`
 Manages the global configuration for the AI models.
-- **`config.json`**: Stores the user's selected LLM model names. By default, it maps the Observer to `gemini-2.5-flash`, the creative/builder agents to `deepseek-v4-flash` (Thinking disabled), and the mathematical/FFmpeg agents to `deepseek-v4-pro` (Reasoning enabled).
+- **`config.json`**: Stores the user's selected LLM model names. By default, it maps the Observer and creative/builder agents to `deepseek-v4-flash` (Thinking disabled), and the mathematical/FFmpeg agents to `deepseek-v4-pro` (Reasoning enabled). The Observer no longer relies on a multimodal proxy model because it parses the JSON `SemanticMatrixTimeline`.
 - Exposes `get_config()` and `set_config()` which are used by the `/api/config` endpoints in `main.py` to allow the frontend to change models on the fly.

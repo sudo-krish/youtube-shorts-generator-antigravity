@@ -7,7 +7,7 @@ CONFIG_PATH = os.path.join(
 
 DEFAULT_CONFIG = {
     "models": {
-        "observer": "gemini-2.5-flash",
+        "observer": "deepseek-v4-flash",
         "scriptwriter": "deepseek-v4-flash",
         "director": "deepseek-v4-flash",
         "editor": "deepseek-v4-pro",

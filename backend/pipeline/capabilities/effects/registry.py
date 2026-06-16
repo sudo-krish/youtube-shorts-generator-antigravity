@@ -5,7 +5,6 @@ from .visual import (
     BlackAndWhiteEffect,
     FlashBangEffect,
     VHSEffect,
-    MotionBlurEffect,
     DynamicGlowEffect,
     DeepfriedEffect,
 )
@@ -20,7 +19,6 @@ EFFECT_CLASSES = {
     "black_and_white": BlackAndWhiteEffect,
     "flashbang": FlashBangEffect,
     "vhs_overlay": VHSEffect,
-    "motion_blur": MotionBlurEffect,
     "dynamic_glow": DynamicGlowEffect,
     "deepfried": DeepfriedEffect,
     "slow_motion": SlowMotionEffect,

@@ -80,17 +80,14 @@ export const ModelSettings = () => {
         ) : (
           <div className="space-y-4">
             {['observer', 'scriptwriter', 'director', 'editor', 'specialist', 'builder'].map((agent) => {
-              // Restriction: Observer MUST be gemini
-              const availableModels = agent === 'observer' 
-                ? models.filter(m => m.includes('gemini'))
-                : models;
+              const availableModels = models;
 
               return (
                 <div key={agent} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
                   <div className="flex flex-col">
                     <span className="text-sm font-bold text-white/90 capitalize">{agent}</span>
                     <span className="text-xs text-white/40">
-                      {agent === 'observer' ? 'Requires Multimodal Vision' : 'Text generation & Logic'}
+                      {agent === 'observer' ? 'Parses Semantic Matrix JSON' : 'Text generation & Logic'}
                     </span>
                   </div>
                   <select
