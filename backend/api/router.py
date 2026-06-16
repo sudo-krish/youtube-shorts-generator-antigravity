@@ -12,8 +12,8 @@ api_router = APIRouter()
 
 api_router.include_router(transformers_router, prefix="/transformers", tags=["transformers"])
 api_router.include_router(agents_router, prefix="/agents", tags=["agents"])
-api_router.include_router(generator_router, tags=["generator"]) # we omit prefix for backward compatibility if needed, or put prefix. The endpoints are currently root level (/api/splice).
-api_router.include_router(testing_router, prefix="/testing", tags=["testing"])
+api_router.include_router(generator_router, tags=["generator"])
+api_router.include_router(testing_router, prefix="/test/transformers", tags=["testing"])
 api_router.include_router(upload_router, tags=["upload"])
 api_router.include_router(admin_router, tags=["admin"])
 api_router.include_router(orchestrator_router, tags=["orchestrator"])

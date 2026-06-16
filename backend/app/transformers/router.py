@@ -8,7 +8,7 @@ from app.transformers.spatial_videomae import SpatialFlowTransformer as SpatialT
 from app.transformers.yolo_tracker import YoloPlayerTracker
 from core.settings import get_asset_path
 
-router = APIRouter(prefix="/api/transformers", tags=["transformers"])
+router = APIRouter(tags=["transformers"])
 logger = logging.getLogger(__name__)
 
 @router.post("/audio", response_model=TransformerResponse)

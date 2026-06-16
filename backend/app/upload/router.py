@@ -23,7 +23,9 @@ async def upload_video(file: UploadFile = File(...)):
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        video_id = db.videos.create(file.filename, file_path)
+        import uuid
+        video_id = str(uuid.uuid4())
+        db.videos.create(video_id, file.filename, file_path)
 
         return {
             "status": "success",

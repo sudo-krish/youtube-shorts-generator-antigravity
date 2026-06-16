@@ -12,7 +12,7 @@ from app.chunking.manager import get_or_create_chunk
 from utils.visualizer import create_yolo_overlay_video
 from core.settings import TMP_DIR
 
-router = APIRouter(prefix="/api/test/transformers", tags=["testing"])
+router = APIRouter(tags=["testing"])
 logger = logging.getLogger(__name__)
 
 class TestRunRequest(BaseModel):

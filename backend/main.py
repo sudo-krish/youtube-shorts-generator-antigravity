@@ -40,7 +40,7 @@ setup_middlewares(app)
 app.mount("/workspace", StaticFiles(directory=WORKSPACE_DIR), name="workspace")
 
 # Include central router
-app.include_router(api_router)
+app.include_router(api_router, prefix="/api")
 
 @app.on_event("startup")
 def startup_event():

@@ -7,7 +7,7 @@ from app.generator.engine import execute_pipeline
 from app.generator.tree_generator import generate_asset_tree
 from app.generator.schemas import CutterRequest, RenderRequest, RenderTreeRequest
 
-router = APIRouter(prefix="/api/generator", tags=["generator"])
+router = APIRouter(tags=["generator"])
 logger = logging.getLogger(__name__)
 
 class GenericResponse(BaseModel):

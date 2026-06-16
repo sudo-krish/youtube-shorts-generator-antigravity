@@ -17,7 +17,7 @@ from app.agents.manager import (
     BuilderAgent
 )
 
-router = APIRouter(prefix="/api/agents", tags=["agents"])
+router = APIRouter(tags=["agents"])
 
 @router.post("/observer", response_model=AgentResponse)
 async def run_observer(req: ObserverRequest):
