@@ -13,7 +13,7 @@ tags:
 # Orchestration & Pipeline Reviewer
 
 ## Overview
-The `AIReviewer` (`backend/ai_director/reviewer.py`) acts as the central brain and supervisor of the multi-agent AI assembly line. It is responsible for chunking the input video, creating lightweight AI proxy videos, generating context, and orchestrating the agents sequentially.
+The `AIOrchestrator` (`backend/ai_director/orchestrator.py`) acts as the central brain and supervisor of the multi-agent AI assembly line. It is responsible for chunking the input video, creating lightweight AI proxy videos, generating context, and orchestrating the agents sequentially.
 
 ## The Chunking Strategy
 To avoid overloading the LLM's token context window and to bypass Gemini API timeout limits, the AI Reviewer splits massive VODs into smaller overlapping chunks.
@@ -21,7 +21,7 @@ To avoid overloading the LLM's token context window and to bypass Gemini API tim
 - The pipeline processes each chunk entirely through all 6 agents independently, then merges the returned `shorts` variants and shifts their timestamps to be absolute relative to the original full-length VOD.
 
 ## The Context Engine
-Before invoking any LLM, the `AIReviewer` executes hard-coded, deterministic Python scripts to provide **Pre-Generated Context**. This guarantees the AI has real-world data to anchor its narrative.
+Before invoking any LLM, the `AIOrchestrator` executes hard-coded, deterministic Python scripts to provide **Pre-Generated Context**. This guarantees the AI has real-world data to anchor its narrative.
 - **Audio Spikes**: `detect_audio_spikes` finds the top `N` loudest moments.
 - **OCR Reading**: `read_ocr_from_video` grabs frames at those audio spikes and extracts the killfeed text.
 - **Tracking**: `track_subject` runs a YOLOv8 pass over the chunk to dump the bounding box X-coordinates.
@@ -39,5 +39,5 @@ The orchestrator has abandoned the rigid linear pipeline in favor of a **Directe
 
 ### Error Handling & API Safety
 - **Redrive Engine**: Jobs are explicitly tracked in the SQLite DB by `stage_name` and `chunk_id`. If a timeout occurs, the engine resumes exactly where it crashed.
-- **Sleep Loops**: The pipeline artificially pauses `time.sleep(60)` between major chunk executions to aggressively avoid Google Gemini's API rate limiting (`429 Too Many Requests`).
+- **Centralized LLM Error Handling**: The orchestrator relies entirely on the unified `LLMClient` which utilizes native `tenacity` exponential backoff, automatically unwrapping and logging rate limits (`429 Too Many Requests`) without requiring massive `try/except` chains at the pipeline level.
 - **File Cleanup**: Upon a successful chunk processing, the proxy video and raw chunk files are deleted to save storage space in the `workspace/` directory.

@@ -1,6 +1,6 @@
 from ai_director.config_manager import get_config
 import logging
-import google.genai as genai
+from ai_director.llm_client import LLMClient
 from google.genai import types
 
 logger = logging.getLogger(__name__)
@@ -40,25 +40,30 @@ PHASES:
 ...
 """
 
-class SpecialistAgent:
-    def __init__(self):
-        self.client = genai.Client()
 
-    def execute(self, editor_breakdown: str, metadata: dict, math_report: str, youtube_rules: str, capabilities: str) -> str:
+class SpecialistAgent:
+    def execute(
+        self,
+        editor_breakdown: str,
+        metadata: dict,
+        math_report: str,
+        youtube_rules: str,
+        capabilities: str,
+    ) -> str:
         logger.info("Specialist Agent acting as Final Editor with YouTube Rules...")
-        
+        client = LLMClient()
+
         prompt = SPECIALIST_PROMPT.format(
             game_name=metadata.get("game_name", "Unknown"),
             region=metadata.get("region", "Global"),
             vibe=metadata.get("vibe", "Standard"),
             math_report=math_report,
             youtube_rules=youtube_rules,
-            capabilities=capabilities
+            capabilities=capabilities,
         )
-        
-        response = self.client.models.generate_content(
+
+        return client.generate_content(
             model=get_config()["models"]["specialist"],
             contents=[prompt + "\n\n=== EDITOR BREAKDOWN ===\n" + editor_breakdown],
-            config=types.GenerateContentConfig(temperature=0.3)
+            config=types.GenerateContentConfig(temperature=0.3),
         )
-        return response.text

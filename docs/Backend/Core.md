@@ -38,5 +38,5 @@ Defines the rigid **Pydantic models** that force the LLM (specifically the Build
 
 ### `ai_director/config_manager.py`
 Manages the global configuration for the AI models.
-- **`config.json`**: Stores the user's selected Gemini model names. By default, it maps all 6 agents (Observer, Scriptwriter, Director, Editor, Specialist, Builder) to `gemini-2.5-flash`.
+- **`config.json`**: Stores the user's selected LLM model names. By default, it maps the Observer to `gemini-2.5-flash`, the creative/builder agents to `deepseek-v4-flash` (Thinking disabled), and the mathematical/FFmpeg agents to `deepseek-v4-pro` (Reasoning enabled).
 - Exposes `get_config()` and `set_config()` which are used by the `/api/config` endpoints in `main.py` to allow the frontend to change models on the fly.

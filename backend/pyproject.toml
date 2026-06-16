@@ -19,6 +19,7 @@ dependencies = [
     "easyocr>=1.7.2",
     "demucs>=4.0.1",
     "tenacity>=9.1.4",
+    "openai>=2.41.1",
 ]
 
 

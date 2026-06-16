@@ -1,6 +1,6 @@
 from ai_director.config_manager import get_config
 import logging
-import google.genai as genai
+from ai_director.llm_client import LLMClient
 from google.genai import types
 
 logger = logging.getLogger(__name__)
@@ -48,24 +48,24 @@ PHASES:
 ...
 """
 
-class ScriptWriterAgent:
-    def __init__(self):
-        self.client = genai.Client()
 
+class ScriptWriterAgent:
     def execute(self, observer_context: str, metadata: dict, web_trends: str) -> str:
-        logger.info("Script Writer Agent generating narrative templates with web context...")
-        
+        logger.info(
+            "Script Writer Agent generating narrative templates with web context..."
+        )
+        client = LLMClient()
+
         prompt = SCRIPTWRITER_PROMPT.format(
             game_name=metadata.get("game_name", "Unknown"),
             game_type=metadata.get("game_type", "Unknown"),
             player_skill=metadata.get("player_skill", "Average"),
             region=metadata.get("region", "Global"),
-            web_trends=web_trends
+            web_trends=web_trends,
         )
-        
-        response = self.client.models.generate_content(
+
+        return client.generate_content(
             model=get_config()["models"]["scriptwriter"],
             contents=[prompt + "\n\n=== OBSERVER CONTEXT ===\n" + observer_context],
-            config=types.GenerateContentConfig(temperature=0.7)
+            config=types.GenerateContentConfig(temperature=0.7),
         )
-        return response.text

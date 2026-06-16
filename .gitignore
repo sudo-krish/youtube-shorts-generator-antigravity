@@ -40,3 +40,14 @@ backend/antigravity.db
 .idea/
 .agent/
 .agents/
+
+# Data & Models
+*.pt
+*.pth
+*.onnx
+yolov8*.pt
+
+# Reports & Logs
+ruff_report.txt
+*.log
+test_*.py

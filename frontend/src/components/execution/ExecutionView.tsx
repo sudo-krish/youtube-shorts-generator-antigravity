@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { PipelineVisualizer } from '../PipelineVisualizer';
 import { RefreshCw, Play } from 'lucide-react';
 import { LogViewer } from '../LogViewer';
+import { ModelSettings } from '../ModelSettings';
 import { api } from '../../api';
 
 interface ExecutionViewProps {
@@ -105,6 +106,8 @@ export const ExecutionView = ({ jobId, onNext }: ExecutionViewProps) => {
         </div>
         
         <div className="flex items-center gap-4">
+          <ModelSettings />
+          
           <div className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white font-medium">
             {progressText}
           </div>

@@ -107,6 +107,28 @@ export const api = {
     return res.json();
   },
 
+  getModels: async () => {
+    const res = await fetch(`${API_BASE_URL}/api/models`);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
+  getConfig: async () => {
+    const res = await fetch(`${API_BASE_URL}/api/config`);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
+  updateConfig: async (config: any) => {
+    const res = await fetch(`${API_BASE_URL}/api/config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
   // WebSocket URL Helper
   getWebSocketUrl: (jobId: string) => {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';

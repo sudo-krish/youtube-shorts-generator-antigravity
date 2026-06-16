@@ -15,6 +15,8 @@ tags:
 ## Overview
 The `engine.py` script (`backend/pipeline/engine.py`) is the workhorse of the Antigravity backend. It translates the abstract JSON arrays into physical `.mp4` renders. 
 
+The core rendering pipeline is completely decoupled into distinct, single-responsibility helper modules (e.g., `_extract_and_demucs_audio`, `_build_visual_filtergraph`, `_process_chunks_parallel`, and `_stitch_video_and_audio`) to prevent massive execution blocks.
+
 To overcome FFmpeg's memory leaks and single-thread bottlenecks on massive graphs, the engine uses **Memory-Efficient Multi-Stage Chunk Rendering**.
 
 ## Execution Stages

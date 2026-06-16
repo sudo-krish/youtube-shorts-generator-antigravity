@@ -1,6 +1,6 @@
 from ai_director.config_manager import get_config
 import logging
-import google.genai as genai
+from ai_director.llm_client import LLMClient
 from google.genai import types
 
 logger = logging.getLogger(__name__)
@@ -38,25 +38,29 @@ GLOBAL STYLE: Aggressive 150% zoom punches on the crosshair. Motion blur trackin
 SFX RULES: Use 'riser.mp3' for tension building, and 'impact.mp3' for heavy kills.
 """
 
-class DirectorAgent:
-    def __init__(self):
-        self.client = genai.Client()
 
-    def execute(self, observer_context: str, metadata: dict, sfx_library: str, music_library: str) -> str:
+class DirectorAgent:
+    def execute(
+        self,
+        observer_context: str,
+        metadata: dict,
+        sfx_library: str,
+        music_library: str,
+    ) -> str:
         logger.info("Director Agent injecting magic and vibes with SFX context...")
-        
+        client = LLMClient()
+
         prompt = DIRECTOR_PROMPT.format(
             game_name=metadata.get("game_name", "Unknown"),
             game_type=metadata.get("game_type", "Unknown"),
             player_skill=metadata.get("player_skill", "Average"),
             region=metadata.get("region", "Global"),
             sfx_library=sfx_library,
-            music_library=music_library
+            music_library=music_library,
         )
-        
-        response = self.client.models.generate_content(
+
+        return client.generate_content(
             model=get_config()["models"]["director"],
             contents=[prompt + "\n\n=== OBSERVER CONTEXT ===\n" + observer_context],
-            config=types.GenerateContentConfig(temperature=0.8)
+            config=types.GenerateContentConfig(temperature=0.8),
         )
-        return response.text

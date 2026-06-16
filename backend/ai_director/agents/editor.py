@@ -1,6 +1,6 @@
 from ai_director.config_manager import get_config
 import logging
-import google.genai as genai
+from ai_director.llm_client import LLMClient
 from google.genai import types
 from pipeline.capabilities.effects.registry import get_capabilities_menu
 
@@ -49,24 +49,30 @@ PHASES:
 Now, translate this Vision into technical directives:
 """
 
-class EditorAgent:
-    def __init__(self):
-        self.client = genai.Client()
 
-    def execute(self, scripts_context: str, director_vision: str, metadata: dict) -> str:
+class EditorAgent:
+    def execute(
+        self, scripts_context: str, director_vision: str, metadata: dict
+    ) -> str:
         logger.info("Editor Agent translating magic into technical directives...")
-        
+        client = LLMClient()
+
         dynamic_menu = get_capabilities_menu()
         final_prompt = EDITOR_PROMPT_TEMPLATE.format(
             game_name=metadata.get("game_name", "Unknown"),
             region=metadata.get("region", "Global"),
             vibe=metadata.get("vibe", "Standard"),
-            capabilities_menu=dynamic_menu
+            capabilities_menu=dynamic_menu,
         )
-        
-        response = self.client.models.generate_content(
+
+        return client.generate_content(
             model=get_config()["models"]["editor"],
-            contents=[final_prompt + "\n\n=== NARRATIVE SCRIPTS ===\n" + scripts_context + "\n\n=== DIRECTOR VISION ===\n" + director_vision],
-            config=types.GenerateContentConfig(temperature=0.4)
+            contents=[
+                final_prompt
+                + "\n\n=== NARRATIVE SCRIPTS ===\n"
+                + scripts_context
+                + "\n\n=== DIRECTOR VISION ===\n"
+                + director_vision
+            ],
+            config=types.GenerateContentConfig(temperature=0.4),
         )
-        return response.text

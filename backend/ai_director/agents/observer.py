@@ -1,7 +1,7 @@
 from ai_director.config_manager import get_config
 import logging
 import json
-import google.genai as genai
+from ai_director.llm_client import LLMClient
 from google.genai import types
 
 logger = logging.getLogger(__name__)
@@ -34,25 +34,49 @@ POV PLAYER IDENTITY: [Character Name] - [Player Name if visible]
 Include every major engagement, death, funny moment, or fail. Timestamps MUST be in absolute float seconds (e.g. 15.5 - 20.0).
 Also append an "Intensity Heatmap" at the bottom rating the action density."""
 
-class ObserverAgent:
-    def __init__(self):
-        self.client = genai.Client()
 
-    def execute(self, uploaded_file, metadata: dict, audio_spikes: list, ocr_dumps: dict, tracking_data: list) -> str:
+class ObserverAgent:
+    def execute(
+        self,
+        proxy_path: str,
+        metadata: dict,
+        audio_spikes: list,
+        ocr_dumps: dict,
+        tracking_data: list,
+    ) -> str:
         logger.info("Observer Agent analyzing raw video with pre-generated context...")
-        
-        prompt = OBSERVER_PROMPT.format(
-            game_name=metadata.get("game_name", "Unknown"),
-            region=metadata.get("region", "Global"),
-            vibe=metadata.get("vibe", "Standard"),
-            audio_spikes=audio_spikes,
-            ocr_dumps=ocr_dumps,
-            tracking_data=json.dumps(tracking_data) if tracking_data else "None"
-        )
-        
-        response = self.client.models.generate_content(
-            model=get_config()["models"]["observer"],
-            contents=[uploaded_file, prompt],
-            config=types.GenerateContentConfig(temperature=0.7)
-        )
-        return response.text
+        client = LLMClient()
+
+        logger.info(f"Uploading AI proxy for {proxy_path}...")
+        uploaded_file = client.client.files.upload(file=proxy_path)
+
+        try:
+            import time
+
+            while True:
+                file_info = client.client.files.get(name=uploaded_file.name)
+                if file_info.state.name == "ACTIVE":
+                    break
+                elif file_info.state.name == "FAILED":
+                    raise Exception("Video processing failed in Gemini API.")
+                time.sleep(5)
+
+            prompt = OBSERVER_PROMPT.format(
+                game_name=metadata.get("game_name", "Unknown"),
+                region=metadata.get("region", "Global"),
+                vibe=metadata.get("vibe", "Standard"),
+                audio_spikes=audio_spikes,
+                ocr_dumps=ocr_dumps,
+                tracking_data=json.dumps(tracking_data) if tracking_data else "None",
+            )
+
+            return client.generate_content(
+                model=get_config()["models"]["observer"],
+                contents=[uploaded_file, prompt],
+                config=types.GenerateContentConfig(temperature=0.7),
+            )
+        finally:
+            try:
+                client.client.files.delete(name=uploaded_file.name)
+            except Exception as e:
+                logger.warning(f"Error during cleanup: {e}")

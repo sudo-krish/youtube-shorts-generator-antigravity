@@ -39,7 +39,7 @@ A drag-and-drop file uploader with smooth hover states and upload progress simul
 ### `ConfigurationPanel.tsx`
 A form to capture the global UI metadata.
 - Inputs: `Game Name` (e.g., Valorant, Apex Legends), `Region` (for web trends), and `Player Vibe` (e.g., Toxic, Chill, Sweaty).
-- Includes the `AdvancedToggles` component, which allows the user to override the global LLM model mapping (e.g., swapping `gemini-2.5-flash` for `gemini-1.5-pro` on specific agents) before hitting "Start".
+- Includes the `ModelSettings` component, which allows the user to override the global LLM model mapping (e.g., swapping `deepseek-v4-flash` for `deepseek-v4-pro` on specific agents) before hitting "Start".
 
 ### `DatabaseViewer.tsx`
 A debug utility accessible from the Sidebar.

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Gamepad2, Globe, Target, ArrowRight, Video, CheckCircle2, Loader2, Info } from 'lucide-react';
+import { ModelSettings } from '../ModelSettings';
 import { api } from '../../api';
 
 interface ConfigurationPanelProps {
@@ -138,12 +139,15 @@ export const ConfigurationPanel = ({ videoId, videoName, onAnalyzeStarted, onCan
         </div>
 
         <div className="mt-8 flex items-center justify-between relative z-10 pt-8 border-t border-white/10">
-          <button 
-            onClick={onCancel}
-            className="px-6 py-3 rounded-full text-sm font-bold text-white/40 hover:text-white transition-colors"
-          >
-            Cancel
-          </button>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={onCancel}
+              className="px-6 py-3 rounded-full text-sm font-bold text-white/40 hover:text-white transition-colors"
+            >
+              Cancel
+            </button>
+            <ModelSettings />
+          </div>
 
           <button 
             onClick={handleStart}

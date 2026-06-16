@@ -1,7 +1,7 @@
 from ai_director.config_manager import get_config
 import logging
 import json
-import google.genai as genai
+from ai_director.llm_client import LLMClient
 from google.genai import types
 
 from ai_director.schemas import FactoryTimeline
@@ -16,23 +16,26 @@ DO NOT hallucinate new data. ONLY use the data provided in the approved text.
 DO NOT OUTPUT ANYTHING BUT RAW JSON. NO MARKDOWN BLOCKS.
 """
 
-class BuilderAgent:
-    def __init__(self):
-        self.client = genai.Client()
 
+class BuilderAgent:
     def execute(self, validated_breakdown: str) -> dict:
         logger.info("Builder Agent generating final JSON schema...")
-        response = self.client.models.generate_content(
+        client = LLMClient()
+        response_text = client.generate_content(
             model=get_config()["models"]["builder"],
-            contents=[BUILDER_PROMPT + "\n\n=== VALIDATED BREAKDOWN ===\n" + validated_breakdown],
+            contents=[
+                BUILDER_PROMPT
+                + "\n\n=== VALIDATED BREAKDOWN ===\n"
+                + validated_breakdown
+            ],
             config=types.GenerateContentConfig(
                 temperature=0.1,
                 response_mime_type="application/json",
-                response_schema=FactoryTimeline
-            )
+                response_schema=FactoryTimeline,
+            ),
         )
         try:
-            return json.loads(response.text)
+            return json.loads(response_text)
         except Exception as e:
             logger.error(f"Failed to parse Builder JSON: {str(e)}")
             return {"shorts": []}

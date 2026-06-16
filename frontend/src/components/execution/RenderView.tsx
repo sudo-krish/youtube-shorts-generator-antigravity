@@ -138,25 +138,49 @@ export const RenderView = ({ jobId }: RenderViewProps) => {
             ) : (
               variants.map((v, idx) => {
                 const vId = v.variant_id || String(idx);
-                const vStatus = renderStatuses[vId]?.status || 'queued';
+                const vState = renderStatuses[vId] || {};
+                const vStatus = vState.status || 'queued';
+                const outputs: string[] = vState.outputs || [];
                 
                 return (
-                  <div key={idx} className="group relative bg-white/5 border border-white/10 rounded-xl overflow-hidden aspect-[9/16] flex flex-col items-center justify-center transition-all hover:border-indigo-500/50 hover:bg-white/10">
+                  <div key={idx} className="group relative bg-white/5 border border-white/10 rounded-xl overflow-hidden min-h-[300px] flex flex-col items-center justify-center transition-all hover:border-indigo-500/50 hover:bg-white/10 p-4">
                     <div className="absolute top-3 left-3 bg-black/60 px-2 py-1 rounded text-[10px] font-mono text-white/70">
                       Variant {vId}
                     </div>
                     
-                    {vStatus === 'completed' ? (
-                      <div className="flex flex-col items-center gap-3">
-                        <CheckCircle2 className="w-12 h-12 text-emerald-400" />
-                        <button className="flex items-center gap-2 px-4 py-2 bg-emerald-500/20 text-emerald-400 rounded-lg text-xs font-bold hover:bg-emerald-500/30">
-                          <Play className="w-3 h-3" /> Play
-                        </button>
+                    {vStatus === 'completed' && outputs.length > 0 ? (
+                      <div className="flex flex-col items-center gap-4 w-full h-full mt-6">
+                        <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+                        <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2">Asset Tree Ready</span>
+                        
+                        <div className="flex flex-col gap-2 w-full">
+                          {outputs.map((outPath, i) => {
+                            const filename = outPath.split('/').pop() || `Hook ${i+1}`;
+                            const hookName = filename.includes('hookA') ? 'Hook A (Energy)' 
+                                          : filename.includes('hookB') ? 'Hook B (Curious)' 
+                                          : filename.includes('hookC') ? 'Hook C (Direct)' 
+                                          : `Hook ${i+1}`;
+                                          
+                            return (
+                              <div key={i} className="flex items-center justify-between bg-black/40 border border-white/10 p-2 rounded-lg w-full">
+                                <span className="text-xs text-white/80 font-mono truncate mr-2 flex-1" title={filename}>{hookName}</span>
+                                <div className="flex gap-1 flex-none">
+                                  <button className="p-1.5 bg-indigo-500/20 text-indigo-400 rounded hover:bg-indigo-500/40 transition-colors" title="Preview">
+                                    <Play className="w-3.5 h-3.5" />
+                                  </button>
+                                  <a href={`http://localhost:8000/api/download/${filename.replace('viral_short_', '').replace('.mp4', '')}`} download className="p-1.5 bg-white/10 text-white/70 rounded hover:bg-white/20 hover:text-white transition-colors" title="Download">
+                                    <Download className="w-3.5 h-3.5" />
+                                  </a>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     ) : vStatus === 'rendering' ? (
                       <div className="flex flex-col items-center gap-3">
                         <CircleDashed className="w-8 h-8 text-blue-400 animate-spin" />
-                        <span className="text-xs text-blue-400 font-mono">Rendering...</span>
+                        <span className="text-xs text-blue-400 font-mono">Building Asset Tree...</span>
                       </div>
                     ) : vStatus === 'failed' ? (
                       <div className="flex flex-col items-center gap-3">
@@ -166,17 +190,11 @@ export const RenderView = ({ jobId }: RenderViewProps) => {
                     ) : (
                       <div className="flex flex-col items-center gap-2 opacity-30">
                         <Layers className="w-8 h-8 text-white" />
-                        <span className="text-xs font-mono text-white uppercase tracking-wider text-center px-4">
-                          {v.hooks?.[0] || 'Pending Render'}
+                        <span className="text-[10px] font-mono text-white uppercase tracking-wider text-center px-4">
+                          {v.hooks?.[0] || 'Pending Pre-Render'}
                         </span>
                       </div>
                     )}
-                    
-                    <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button className="p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white">
-                        <Download className="w-4 h-4" />
-                      </button>
-                    </div>
                   </div>
                 );
               })
