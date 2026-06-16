@@ -14,15 +14,20 @@ class AudioVoxtralTransformer(BaseTransformer):
         self.game_id = game_id
 
     def load_model(self):
+        from core.settings import MODELS_DIR
         self.logger.info("Loading Voxtral-Mini-3B Processor...")
-        self.processor = AutoProcessor.from_pretrained(self.repo_id)
+        self.processor = AutoProcessor.from_pretrained(
+            self.repo_id,
+            cache_dir=str(MODELS_DIR)
+        )
         
         self.logger.info(f"Loading Voxtral Model into {self.device.upper()} VRAM...")
         # device_map="auto" and bfloat16 keep memory usage under 4GB
         self.model = VoxtralForConditionalGeneration.from_pretrained(
             self.repo_id, 
             dtype=torch.bfloat16, 
-            device_map=self.device
+            device_map=self.device,
+            cache_dir=str(MODELS_DIR)
         )
 
     def unload_model(self):

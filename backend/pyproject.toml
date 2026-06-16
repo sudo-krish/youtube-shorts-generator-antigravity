@@ -30,6 +30,7 @@ dependencies = [
     "accelerate>=1.14.0",
     "torchcodec>=0.7.0",
     "qwen-vl-utils>=0.0.14",
+    "mistral-common>=1.11.3",
 ]
 
 
