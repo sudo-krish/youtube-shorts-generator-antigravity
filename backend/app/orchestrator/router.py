@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-WORKSPACE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "workspace")
+ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "assets")
 OUTPUTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "outputs")
 
 class AnalyzeRequest(BaseModel):
@@ -41,7 +41,7 @@ def run_orchestrator_job(job_id: str, video_path: str, metadata: dict, resume_st
         output_json = orchestrator.orchestrate_pipeline(job_id, resume_state=resume_state)
 
         base_name = os.path.splitext(os.path.basename(video_path))[0]
-        output_path = os.path.join(WORKSPACE_DIR, f"{base_name}_segments.json")
+        output_path = os.path.join(ASSETS_DIR, f"{base_name}_segments.json")
         with open(output_path, "w") as f:
             json.dump(output_json, f, indent=2)
 

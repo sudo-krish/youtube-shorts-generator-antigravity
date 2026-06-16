@@ -23,7 +23,7 @@ export const RenderView = ({ jobId }: RenderViewProps) => {
         const jobData = await jobRes.json();
         
         if (jobData.json_path) {
-          const blueprintRes = await fetch(`http://localhost:8000/${jobData.json_path.split('backend/')[1] || 'workspace/' + jobData.json_path.split('/').pop()}`);
+          const blueprintRes = await fetch(`http://localhost:8000/${jobData.json_path.split('backend/')[1] || 'assets/' + jobData.json_path.split('/').pop()}`);
           if (blueprintRes.ok) {
             const blueprint = await blueprintRes.json();
             setVariants(blueprint.shorts || []);

@@ -196,7 +196,7 @@ export const TransformerTesting = () => {
               <div className="w-1/2 p-4 flex items-center justify-center bg-black/80 relative">
                 {viewModalData.visual_output_path ? (
                   <video 
-                    src={`${API_BASE_URL}/workspace/${viewModalData.visual_output_path.split('/').pop()}`}
+                    src={`${API_BASE_URL}/assets/tmp/${viewModalData.visual_output_path.split('/').pop()}`}
                     controls
                     className="max-w-full max-h-full rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.8)]"
                   />

@@ -23,11 +23,7 @@ from api.router import api_router
 from core.db.connection import init_db
 
 # Directory setup
-WORKSPACE_DIR = os.path.join(os.path.dirname(__file__), "workspace")
-SFX_DIR = os.path.join(WORKSPACE_DIR, "sfx")
 OUTPUTS_DIR = os.path.join(os.path.dirname(__file__), "outputs")
-os.makedirs(WORKSPACE_DIR, exist_ok=True)
-os.makedirs(SFX_DIR, exist_ok=True)
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
 
 # Application instantiation
@@ -36,8 +32,10 @@ app = FastAPI(title="Hyper Shorts Factory API")
 # Setup middlewares (CORS)
 setup_middlewares(app)
 
-# Mount static files
-app.mount("/workspace", StaticFiles(directory=WORKSPACE_DIR), name="workspace")
+from core.settings import ASSETS_DIR
+
+# Mount assets directory for frontend
+app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 
 # Include central router
 app.include_router(api_router, prefix="/api")

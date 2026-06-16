@@ -12,9 +12,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-WORKSPACE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "workspace")
+ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "assets")
 OUTPUTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "outputs")
-SFX_DIR = os.path.join(WORKSPACE_DIR, "sfx")
+SFX_DIR = os.path.join(ASSETS_DIR, "sfx")
 os.makedirs(SFX_DIR, exist_ok=True)
 
 

@@ -13,6 +13,9 @@ class VideoManager:
     def get_by_path(self, video_path: str) -> dict:
         return execute_read_one("SELECT * FROM videos WHERE video_path = ?", (video_path,))
 
+    def get_all(self) -> list:
+        return execute_read_query("SELECT * FROM videos ORDER BY created_at DESC")
+
 class ChunkManager:
     def get_by_index(self, video_id: str, chunk_index: int) -> dict:
         # Fallback logic for audio_chunk_name is handled by DB ALTERs now.
@@ -227,7 +230,7 @@ class GameManager:
 
     def create_game(self, game_name: str, game_type_id: int):
         game_uuid = str(uuid.uuid4())
-        folder_path = os.path.join("workspace", "games", game_uuid)
+        folder_path = os.path.join("assets", "games", game_uuid)
         abs_folder_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), folder_path)
         os.makedirs(abs_folder_path, exist_ok=True)
         with open(os.path.join(abs_folder_path, "context.txt"), "w") as f:

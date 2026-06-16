@@ -18,10 +18,10 @@ from core.db.manager import db
 
 logger = logging.getLogger(__name__)
 
-WORKSPACE_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "workspace"
+ASSETS_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets"
 )
-os.makedirs(WORKSPACE_DIR, exist_ok=True)
+os.makedirs(ASSETS_DIR, exist_ok=True)
 
 
 class AIOrchestrator:
@@ -57,7 +57,7 @@ class AIOrchestrator:
             current_duration = end - start
 
             chunk_name = f"{job_id}_chunk_{idx}.mp4"
-            output_chunk_path = os.path.join(WORKSPACE_DIR, chunk_name)
+            output_chunk_path = os.path.join(ASSETS_DIR, chunk_name)
 
             cmd = [
                 "ffmpeg",
@@ -107,7 +107,7 @@ class AIOrchestrator:
             if job_id:
                 db.jobs.db.jobs.log_stage(job_id, step_name, "completed", str(data), chunk_id=chunk_idx, model_id=model_id)
                 agents_dir = os.path.join(
-                    os.path.dirname(WORKSPACE_DIR),
+                    os.path.dirname(ASSETS_DIR),
                     "outputs",
                     "agents",
                     job_id,

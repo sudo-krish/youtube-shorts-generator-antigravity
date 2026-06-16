@@ -21,8 +21,9 @@ def create_yolo_overlay_video(input_video_path: str, output_video_path: str, mat
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
 
+    temp_path = output_video_path + ".temp.mp4"
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
+    out = cv2.VideoWriter(temp_path, fourcc, fps, (width, height))
 
     # Create a quick lookup for bounding boxes by integer second
     box_lookup = {}
@@ -41,24 +42,37 @@ def create_yolo_overlay_video(input_video_path: str, output_video_path: str, mat
         boxes = box_lookup.get(current_second, [])
         for box in boxes:
             label = box.get("label", "Unknown")
-            x = int(box.get("x", 0))
-            y = int(box.get("y", 0))
+            center_x = int(box.get("x", 0))
+            center_y = int(box.get("y", 0))
             w = int(box.get("w", 0))
             h = int(box.get("h", 0))
-            conf = box.get("conf", 0.0)
+            conf = box.get("confidence", box.get("conf", 0.0))
 
             color = (0, 255, 0) if label == "Head" else (255, 0, 0)
             
+            # Calculate top-left and bottom-right from center coordinates
+            x1 = int(center_x - w / 2)
+            y1 = int(center_y - h / 2)
+            x2 = int(center_x + w / 2)
+            y2 = int(center_y + h / 2)
+            
             # Draw rectangle
-            cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
             
             # Draw label
             text = f"{label} {conf:.2f}"
-            cv2.putText(frame, text, (x, max(15, y - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+            cv2.putText(frame, text, (x1, max(15, y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
         out.write(frame)
         frame_count += 1
 
     cap.release()
     out.release()
+    
+    # Convert to H.264 so web browsers can play it natively
+    import subprocess
+    subprocess.run(["ffmpeg", "-y", "-i", temp_path, "-vcodec", "libx264", "-acodec", "aac", output_video_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if os.path.exists(temp_path):
+        os.remove(temp_path)
+    
     logger.info(f"YOLO Overlay Video saved to {output_video_path}")

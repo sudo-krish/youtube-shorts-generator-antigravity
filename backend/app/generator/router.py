@@ -60,12 +60,12 @@ async def list_projects():
     import os
     import json
     projects = []
-    WORKSPACE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "workspace")
-    for file in os.listdir(WORKSPACE_DIR):
+    ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "assets")
+    for file in os.listdir(ASSETS_DIR):
         if file.endswith("_segments.json"):
             base_name = file.replace("_segments.json", "")
-            json_path = os.path.join(WORKSPACE_DIR, file)
-            video_path = os.path.join(WORKSPACE_DIR, f"{base_name}.mp4")
+            json_path = os.path.join(ASSETS_DIR, file)
+            video_path = os.path.join(ASSETS_DIR, f"{base_name}.mp4")
 
             if os.path.exists(video_path):
                 with open(json_path, "r") as f:
@@ -92,7 +92,7 @@ async def generate_short(background_tasks: __import__('fastapi').BackgroundTasks
     import random
     logger.info("Received request to generate a new short from factory buckets.")
     OUTPUTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "outputs")
-    WORKSPACE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "workspace")
+    ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "assets")
 
     proj_dirs = [
         os.path.join(OUTPUTS_DIR, d)
@@ -107,7 +107,7 @@ async def generate_short(background_tasks: __import__('fastapi').BackgroundTasks
     proj_dir = random.choice(proj_dirs)
     video_id = os.path.basename(proj_dir)
 
-    segments_path = os.path.join(WORKSPACE_DIR, f"{video_id}_segments.json")
+    segments_path = os.path.join(ASSETS_DIR, f"{video_id}_segments.json")
     if not os.path.exists(segments_path):
         raise __import__('fastapi').HTTPException(status_code=400, detail="JSON blueprint not found.")
 

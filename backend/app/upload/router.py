@@ -6,8 +6,8 @@ import shutil
 
 router = APIRouter()
 
-WORKSPACE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "workspace")
-VIDEOS_DIR = os.path.join(WORKSPACE_DIR, "videos")
+ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "assets")
+VIDEOS_DIR = os.path.join(ASSETS_DIR, "videos")
 os.makedirs(VIDEOS_DIR, exist_ok=True)
 
 
