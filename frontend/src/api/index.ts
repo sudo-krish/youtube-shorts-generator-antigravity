@@ -62,7 +62,29 @@ export const api = {
     if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
-  
+
+  // Testing
+  getTestHistory: async () => {
+    const res = await fetch(`${API_BASE_URL}/api/test/transformers`);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
+  runTransformerTest: async (videoId: string, chunkIndex: number, transformerName: string, gameId: string = 'valorant') => {
+    const res = await fetch(`${API_BASE_URL}/api/test/transformers/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        video_id: videoId,
+        chunk_index: chunkIndex,
+        transformer_name: transformerName,
+        game_id: gameId
+      })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
   getRenderStatus: async (jobId: string) => {
     const res = await fetch(`${API_BASE_URL}/api/jobs/${jobId}/render/status`);
     if (!res.ok) throw new Error(await res.text());

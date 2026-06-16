@@ -9,6 +9,7 @@ interface SidebarProps {
   onOpenDbViewer: () => void;
   onOpenDashboard: () => void;
   onOpenGameManager: () => void;
+  onOpenTestingUI: () => void;
 }
 
 export const Sidebar: FC<SidebarProps> = ({ 
@@ -16,7 +17,8 @@ export const Sidebar: FC<SidebarProps> = ({
   onSelectJob, 
   onOpenDbViewer,
   onOpenDashboard,
-  onOpenGameManager
+  onOpenGameManager,
+  onOpenTestingUI
 }) => {
   const [jobs, setJobs] = useState<any[]>([]);
 
@@ -89,6 +91,16 @@ export const Sidebar: FC<SidebarProps> = ({
           <div className="flex items-center gap-3">
             <Sparkles className="w-5 h-5 text-aurora-magenta group-hover:animate-pulse" />
             <span className="font-bold text-white/90 group-hover:text-white">Game Context</span>
+          </div>
+        </button>
+
+        <button 
+          onClick={onOpenTestingUI}
+          className="w-full flex items-center justify-between p-3 rounded-xl border border-white/10 hover:border-white/20 hover:bg-white/5 transition-colors group"
+        >
+          <div className="flex items-center gap-3">
+            <Activity className="w-5 h-5 text-white/60 group-hover:text-white" />
+            <span className="font-bold text-white/70 group-hover:text-white">Transformers Test</span>
           </div>
         </button>
 

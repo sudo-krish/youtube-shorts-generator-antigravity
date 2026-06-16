@@ -7,10 +7,11 @@ import { RenderView } from './components/execution/RenderView';
 import { DatabaseViewer } from './components/DatabaseViewer';
 import { Dashboard } from './components/Dashboard';
 import { GameContextManager } from './components/GameContextManager';
+import { TransformerTesting } from './components/testing/TransformerTesting';
 
 export const App = () => {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [wizardState, setWizardState] = useState<'UPLOAD' | 'CONFIG' | 'DB_VIEWER' | 'RENDER_VIEW' | 'DASHBOARD' | 'GAME_MANAGER'>('UPLOAD');
+  const [wizardState, setWizardState] = useState<'UPLOAD' | 'CONFIG' | 'DB_VIEWER' | 'RENDER_VIEW' | 'DASHBOARD' | 'GAME_MANAGER' | 'TESTING_UI'>('UPLOAD');
   const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
   const [currentVideoName, setCurrentVideoName] = useState<string | null>(null);
 
@@ -62,6 +63,10 @@ export const App = () => {
           setSelectedJobId(null);
           setWizardState('GAME_MANAGER');
         }}
+        onOpenTestingUI={() => {
+          setSelectedJobId(null);
+          setWizardState('TESTING_UI');
+        }}
       />
 
       {/* MAIN CANVAS */}
@@ -95,6 +100,10 @@ export const App = () => {
             
             {wizardState === 'GAME_MANAGER' && (
               <GameContextManager onBack={() => setWizardState('UPLOAD')} />
+            )}
+
+            {wizardState === 'TESTING_UI' && (
+              <TransformerTesting />
             )}
           </div>
         ) : wizardState === 'RENDER_VIEW' ? (

@@ -51,3 +51,12 @@ yolov8*.pt
 ruff_report.txt
 *.log
 test_*.py
+
+# Antigravity specific
+backend/assets/
+backend/chunks/
+backend/workspace/
+backend/outputs/
+backend/tmp/
+backend/.venv/
+.env
