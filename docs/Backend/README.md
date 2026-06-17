@@ -21,6 +21,13 @@ It is powered by a **Pre-Generated Context Engine**, ensuring the AI never hallu
 
 ## The Multi-Agent Architecture & Context Engine
 
+### Local AI Models & Auto-Download
+All heavy AI models are designed to be automatically downloaded and cached on first run. You do not need to manually download weights.
+- **Transformers (LLaVA-OneVision, Voxtral-Mini, VideoMAE)**: Weights are pulled directly from HuggingFace and cached into `backend/assets/models/models--*`.
+- **YOLO (Spatial Tracking)**: Ultralytics automatically downloads the specified `.pt` file (e.g., `yoloe-26s-seg.pt` or `yolov8s-world.pt`) into `backend/assets/models/`. 
+*(Note: If you are using a non-standard or custom fine-tuned YOLO model, place the `.pt` file directly into `backend/assets/models/` before starting the server).*
+These directories are strictly ignored by `.gitignore` to prevent tracking massive files.
+
 The rigid 3-part limit is gone. The backend now supports dynamic, N-Phase structures, driven by a sequence of specialized AI agents. To save tokens and eliminate hallucinations, we use **Python Pre-Processor Tools** (`backend/ai_director/tools/`) to generate context dumps *before* calling each agent:
 
 ### 1. Global UI Metadata Layer
