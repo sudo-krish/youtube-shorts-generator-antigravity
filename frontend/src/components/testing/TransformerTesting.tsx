@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Play, Database, Activity, LayoutGrid, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Play, Database, Activity, LayoutGrid, X, Download } from 'lucide-react';
 import { api, API_BASE_URL } from '../../api';
 
 export const TransformerTesting = () => {
@@ -7,6 +7,8 @@ export const TransformerTesting = () => {
   const [history, setHistory] = useState<any[]>([]);
   const [selectedVideo, setSelectedVideo] = useState<string>('');
   const [chunkIndex, setChunkIndex] = useState<number>(0);
+  const [chunkDuration, setChunkDuration] = useState<number>(15.0);
+  const [stepInterval, setStepInterval] = useState<number>(1);
   const [selectedTransformer, setSelectedTransformer] = useState<string>('yolo');
   const [isRunning, setIsRunning] = useState(false);
   
@@ -46,7 +48,7 @@ export const TransformerTesting = () => {
     if (!selectedVideo) return;
     setIsRunning(true);
     try {
-      await api.runTransformerTest(selectedVideo, chunkIndex, selectedTransformer);
+      await api.runTransformerTest(selectedVideo, chunkIndex, selectedTransformer, chunkDuration, 'valorant', stepInterval);
       await fetchHistory();
     } catch (e) {
       console.error(e);
@@ -68,7 +70,7 @@ export const TransformerTesting = () => {
 
       {/* Control Panel */}
       <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
-        <div className="grid grid-cols-4 gap-6">
+        <div className="grid grid-cols-6 gap-6">
           <div className="flex flex-col gap-2">
             <label className="text-xs uppercase tracking-wider text-white/50 font-bold">Select Video</label>
             <select 
@@ -94,6 +96,30 @@ export const TransformerTesting = () => {
           </div>
 
           <div className="flex flex-col gap-2">
+            <label className="text-xs uppercase tracking-wider text-white/50 font-bold">Duration (s)</label>
+            <input 
+              type="number" 
+              min={1}
+              step={0.5}
+              value={chunkDuration}
+              onChange={(e) => setChunkDuration(parseFloat(e.target.value))}
+              className="bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-aurora-cyan transition-colors"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-xs uppercase tracking-wider text-white/50 font-bold">Step (s)</label>
+            <input 
+              type="number" 
+              min={1}
+              step={1}
+              value={stepInterval}
+              onChange={(e) => setStepInterval(parseInt(e.target.value))}
+              className="bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-aurora-cyan transition-colors"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
             <label className="text-xs uppercase tracking-wider text-white/50 font-bold">Transformer</label>
             <select 
               value={selectedTransformer}
@@ -101,7 +127,7 @@ export const TransformerTesting = () => {
               className="bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-aurora-cyan transition-colors"
             >
               <option value="yolo">YOLO Player Tracker</option>
-              <option value="vision">SigLIP Vision Classifier</option>
+              <option value="vision">LLaVA Vision Transformer</option>
               <option value="audio">Voxtral-Mini-3B Audio LLM</option>
               <option value="spatial">Optical Flow Spatial</option>
             </select>
@@ -151,12 +177,21 @@ export const TransformerTesting = () => {
                 </td>
                 <td className="px-6 py-4">
                   {row.status !== 'running' && (
-                    <button 
-                      onClick={() => setViewModalData(row)}
-                      className="text-aurora-cyan hover:text-white font-semibold text-sm transition-colors"
-                    >
-                      View Results
-                    </button>
+                    <div className="flex items-center gap-4">
+                      <button 
+                        onClick={() => setViewModalData(row)}
+                        className="text-aurora-cyan hover:text-white font-semibold text-sm transition-colors"
+                      >
+                        View Results
+                      </button>
+                      <a 
+                        href={`${API_BASE_URL}/api/test/transformers/download/${row.test_id}`}
+                        download
+                        className="text-aurora-magenta hover:text-white font-semibold text-sm transition-colors flex items-center gap-1"
+                      >
+                        <Download className="w-4 h-4" /> Video
+                      </a>
+                    </div>
                   )}
                 </td>
               </tr>
@@ -192,14 +227,22 @@ export const TransformerTesting = () => {
                 </pre>
               </div>
               
-              {/* Visualizer Video */}
+              {/* Visualizer Video / Audio */}
               <div className="w-1/2 p-4 flex items-center justify-center bg-black/80 relative">
                 {viewModalData.visual_output_path ? (
-                  <video 
-                    src={`${API_BASE_URL}/assets/tmp/${viewModalData.visual_output_path.split('/').pop()}`}
-                    controls
-                    className="max-w-full max-h-full rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.8)]"
-                  />
+                  viewModalData.visual_output_path.endsWith('.wav') ? (
+                    <audio 
+                      src={`${API_BASE_URL}/assets/${viewModalData.visual_output_path.split('/assets/')[1]}`}
+                      controls
+                      className="w-full"
+                    />
+                  ) : (
+                    <video 
+                      src={`${API_BASE_URL}/assets/${viewModalData.visual_output_path.split('/assets/')[1]}`}
+                      controls
+                      className="max-w-full max-h-full rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.8)]"
+                    />
+                  )
                 ) : (
                   <div className="text-white/30 text-sm flex flex-col items-center gap-4">
                     <LayoutGrid className="w-12 h-12 text-white/10" />

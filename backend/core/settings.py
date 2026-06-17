@@ -18,8 +18,10 @@ CHUNKS_DIR = ASSETS_DIR / "chunks"
 VIDEO_CHUNKS_DIR = CHUNKS_DIR / "video_chunks"
 AUDIO_CHUNKS_DIR = CHUNKS_DIR / "audio_chunks"
 
+AGENTS_OUTPUT_DIR = OUTPUT_DIR / "agents"
+
 # Ensure directories exist
-for _dir in [MODELS_DIR, AUDIO_ASSETS_DIR, OUTPUT_DIR, VIDEOS_DIR, TMP_DIR, CHUNKS_DIR, VIDEO_CHUNKS_DIR, AUDIO_CHUNKS_DIR]:
+for _dir in [MODELS_DIR, AUDIO_ASSETS_DIR, OUTPUT_DIR, VIDEOS_DIR, TMP_DIR, CHUNKS_DIR, VIDEO_CHUNKS_DIR, AUDIO_CHUNKS_DIR, AGENTS_OUTPUT_DIR]:
     _dir.mkdir(parents=True, exist_ok=True)
 
 def get_asset_path(filename: str, asset_type: str) -> str:

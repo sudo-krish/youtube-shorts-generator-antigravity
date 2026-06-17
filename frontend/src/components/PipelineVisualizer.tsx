@@ -15,7 +15,7 @@ interface PipelineVisualizerProps {
 
 const AGENT_STEPS = [
     { id: 'ast_transformer', label: 'Audio (AST)', icon: Cpu },
-    { id: 'siglip_transformer', label: 'Visual (SigLIP)', icon: Image },
+    { id: 'llava_transformer', label: 'Visual (LLaVA)', icon: Image },
     { id: 'spatial_transformer', label: 'Spatial Flow', icon: Move },
     { id: 'matrix_merging', label: 'Matrix Merge', icon: Combine },
     { id: 'observer', label: 'Observer', icon: Eye },

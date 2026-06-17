@@ -42,51 +42,63 @@ class AudioVoxtralTransformer(BaseTransformer):
                 torch.cuda.empty_cache()
 
     def process(self, video_path: str, start_time: float, end_time: float) -> str:
+        import tempfile
+        import os
+        import soundfile as sf
+        
         try:
             # Load the specific chunk using librosa
             waveform, sr = librosa.load(video_path, sr=16000, offset=start_time, duration=(end_time - start_time))
             
             if len(waveform) == 0:
                 return "Silence."
-
-            # The Master Prompt: Tell the model exactly what to listen for
-            system_prompt = (
-                "Listen to this brief gaming audio clip. "
-                "Identify any gunshots, explosions, footsteps, or UI sounds. "
-                "If the player speaks, transcribe what they say and describe their emotional state. "
-                "Keep the answer to one concise sentence."
-            )
-
-            # Build the conversation payload natively
-            conversation = [
-                {"role": "system", "content": [{"type": "text", "text": system_prompt}]},
-                {"role": "user", "content": [
-                    {"type": "audio", "audio": waveform},
-                    {"type": "text", "text": "What is happening in this audio?"}
-                ]}
-            ]
-
-            inputs = self.processor.apply_chat_template(
-                conversation,
-                tokenize=True,
-                add_generation_prompt=True,
-                return_dict=True
-            )
+                
+            # Voxtral's chat template requires audio to be passed via a file path or URL
+            fd, temp_path = tempfile.mkstemp(suffix=".wav")
+            os.close(fd)
             
-            # Move inputs to VRAM in bfloat16
-            inputs = {k: v.to(self.device, dtype=torch.bfloat16) if torch.is_floating_point(v) else v.to(self.device) for k, v in inputs.items()}
-
-            # Generate the description
-            with torch.no_grad():
-                outputs = self.model.generate(**inputs, max_new_tokens=100)
-            
-            # Decode the output
-            decoded_output = self.processor.batch_decode(
-                outputs[:, inputs["input_ids"].shape[1]:], 
-                skip_special_tokens=True
-            )[0]
-
-            return decoded_output.strip()
+            try:
+                sf.write(temp_path, waveform, sr)
+                
+                # The Master Prompt: Tell the model exactly what to listen for
+                system_prompt = (
+                    "Listen to this brief gaming audio clip. "
+                    "Identify any gunshots, explosions, footsteps, or UI sounds. "
+                    "If the player speaks, transcribe what they say and describe their emotional state. "
+                    "Keep the answer to one concise sentence."
+                )
+    
+                # Build the conversation payload natively
+                conversation = [
+                    {"role": "user", "content": [
+                        {"type": "text", "text": f"{system_prompt}\n\nWhat is happening in this audio?"},
+                        {"type": "audio", "path": temp_path}
+                    ]}
+                ]
+    
+                inputs = self.processor.apply_chat_template(
+                    conversation,
+                    tokenize=True,
+                    return_dict=True
+                )
+                
+                # Move inputs to VRAM in bfloat16
+                inputs = {k: v.to(self.device, dtype=torch.bfloat16) if torch.is_floating_point(v) else v.to(self.device) for k, v in inputs.items()}
+    
+                # Generate the description
+                with torch.no_grad():
+                    outputs = self.model.generate(**inputs, max_new_tokens=100)
+                
+                # Decode the output
+                decoded_output = self.processor.batch_decode(
+                    outputs[:, inputs["input_ids"].shape[1]:], 
+                    skip_special_tokens=True
+                )[0]
+    
+                return decoded_output.strip()
+            finally:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
         except Exception as e:
             self.logger.error(f"Voxtral failed to process chunk {start_time}-{end_time}: {e}")
             return "Audio processing failed."

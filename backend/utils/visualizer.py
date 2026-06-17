@@ -48,7 +48,7 @@ def create_yolo_overlay_video(input_video_path: str, output_video_path: str, mat
             h = int(box.get("h", 0))
             conf = box.get("confidence", box.get("conf", 0.0))
 
-            color = (0, 255, 0) if label == "Head" else (255, 0, 0)
+            color = (0, 255, 0) if label in ("enemy", "Head") else (255, 0, 0)
             
             # Calculate top-left and bottom-right from center coordinates
             x1 = int(center_x - w / 2)

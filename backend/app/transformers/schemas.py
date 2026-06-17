@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional
 class TransformerRequest(BaseModel):
     video_path: str
     duration: float
-    step: int = 3
+    step: float = 3.0
     game_id: Optional[str] = "valorant"
 
 class TransformerResponse(BaseModel):

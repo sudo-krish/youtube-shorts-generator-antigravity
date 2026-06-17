@@ -70,7 +70,7 @@ export const api = {
     return res.json();
   },
 
-  runTransformerTest: async (videoId: string, chunkIndex: number, transformerName: string, gameId: string = 'valorant') => {
+  runTransformerTest: async (videoId: string, chunkIndex: number, transformerName: string, chunkDuration: number = 15.0, gameId: string = 'valorant', stepInterval: number = 1) => {
     const res = await fetch(`${API_BASE_URL}/api/test/transformers/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -78,7 +78,9 @@ export const api = {
         video_id: videoId,
         chunk_index: chunkIndex,
         transformer_name: transformerName,
-        game_id: gameId
+        game_id: gameId,
+        chunk_duration: chunkDuration,
+        step: stepInterval
       })
     });
     if (!res.ok) throw new Error(await res.text());

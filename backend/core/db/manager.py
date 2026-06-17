@@ -142,7 +142,7 @@ class TestManager:
         execute_write_query(query, (test_id, video_id, chunk_index, transformer_name, time.time()))
 
     def update(self, test_id: str, status: str, output_data: str = None, visual_path: str = None):
-        if status == 'completed':
+        if status in ('completed', 'success'):
             query = "UPDATE transformer_tests SET status = ?, end_time = ?, output_data = ?, visual_output_path = ? WHERE test_id = ?"
             execute_write_query(query, (status, time.time(), output_data, visual_path, test_id))
         else:

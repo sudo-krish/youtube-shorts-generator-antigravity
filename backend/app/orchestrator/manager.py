@@ -18,6 +18,8 @@ from core.db.manager import db
 
 logger = logging.getLogger(__name__)
 
+from core.settings import AGENTS_OUTPUT_DIR
+
 ASSETS_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets"
 )
@@ -174,13 +176,6 @@ class AIOrchestrator:
                 builder.build_spatial_matrix,
                 3
             )
-            yolo_tracking = execute_stage(
-                "yolo_tracking",
-                "YOLO extracting player focus points...",
-                builder.build_yolo_matrix,
-                1
-            )
-            
             semantic_matrix = execute_stage(
                 "matrix_merging",
                 "Concatenating and merging Transformer Timelines...",
@@ -200,6 +195,14 @@ class AIOrchestrator:
                 ocr_dumps,
                 semantic_matrix
             )
+
+            # Dump Agent & Transformer outputs explicitly to Assets
+            import json
+            chunk_base = os.path.basename(chunk_path).split('.')[0]
+            with open(os.path.join(AGENTS_OUTPUT_DIR, f"{chunk_base}_semantic_matrix.json"), "w") as f:
+                json.dump(semantic_matrix, f, indent=2)
+            with open(os.path.join(AGENTS_OUTPUT_DIR, f"{chunk_base}_observer_context.json"), "w") as f:
+                json.dump({"context": context}, f, indent=2)
 
             # Stage 2: Scriptwriter
             web_trends = (
@@ -242,8 +245,7 @@ class AIOrchestrator:
                 self.editor.execute,
                 scripts,
                 vision,
-                self.metadata,
-                yolo_tracking
+                self.metadata
             )
 
             # Stage 5: Specialist (YouTube Specialist & Final Polish Editor)

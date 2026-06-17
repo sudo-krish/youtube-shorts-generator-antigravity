@@ -10,7 +10,7 @@ import os
 from core.db.manager import db
 from app.chunking.manager import get_or_create_chunk
 from utils.visualizer import create_yolo_overlay_video
-from core.settings import TMP_DIR
+from core.settings import TMP_DIR, AGENTS_OUTPUT_DIR
 
 router = APIRouter(tags=["testing"])
 logger = logging.getLogger(__name__)
@@ -20,6 +20,8 @@ class TestRunRequest(BaseModel):
     chunk_index: int
     transformer_name: str
     game_id: Optional[str] = "valorant"
+    chunk_duration: Optional[float] = 15.0
+    step: Optional[float] = 1.0
 
 class TestRecord(BaseModel):
     test_id: str
@@ -50,7 +52,7 @@ def get_all_tests():
         ))
     return results
 
-def run_test_background(test_id: str, video_id: str, chunk_index: int, transformer_name: str, game_id: str):
+def run_test_background(test_id: str, video_id: str, chunk_index: int, transformer_name: str, game_id: str, chunk_duration: float, step: int):
     try:
         # 1. Get original video path
         video_record = db.videos.get(video_id)
@@ -59,14 +61,14 @@ def run_test_background(test_id: str, video_id: str, chunk_index: int, transform
         video_path = video_record["video_path"]
         
         # 2. Get or create chunk
-        chunk_path, _ = get_or_create_chunk(video_id, chunk_index, video_path)
+        chunk_path, _ = get_or_create_chunk(video_id, chunk_index, video_path, chunk_duration=int(chunk_duration))
         
         # 3. Call transformer API
         api_url = f"http://127.0.0.1:8000/api/transformers/{transformer_name}"
         payload = {
             "video_path": chunk_path,
-            "duration": 15.0, # Default chunk size
-            "step": 1 if transformer_name == "yolo" else 3,
+            "duration": chunk_duration,
+            "step": step,
             "game_id": game_id
         }
         
@@ -74,14 +76,22 @@ def run_test_background(test_id: str, video_id: str, chunk_index: int, transform
         response.raise_for_status()
         matrix_data = response.json().get("matrix", [])
         
-        visual_path = None
-        
         # 4. Generate visual overlay if YOLO
         if transformer_name == "yolo":
             visual_path = os.path.join(str(TMP_DIR), f"yolo_overlay_{test_id}.mp4")
             create_yolo_overlay_video(chunk_path, visual_path, matrix_data)
+        elif transformer_name == "audio":
+            audio_path = os.path.join(str(chunk_path).replace('video_chunks', 'audio_chunks').replace('.mp4', '.wav'))
+            visual_path = audio_path if os.path.exists(audio_path) else None
+        else:
+            visual_path = chunk_path
             
-        # 5. Success
+        # 5. Save output explicitly to agents output directory
+        agent_out_path = os.path.join(str(AGENTS_OUTPUT_DIR), f"{transformer_name}_{test_id}.json")
+        with open(agent_out_path, "w") as f:
+            json.dump(matrix_data, f, indent=2)
+            
+        # 6. Success
         db.tests.update(test_id, 'success', json.dumps(matrix_data), visual_path)
         
     except Exception as e:
@@ -96,7 +106,24 @@ def start_test_run(req: TestRunRequest, background_tasks: BackgroundTasks):
     
     background_tasks.add_task(
         run_test_background,
-        test_id, req.video_id, req.chunk_index, req.transformer_name, req.game_id
+        test_id, req.video_id, req.chunk_index, req.transformer_name, req.game_id, req.chunk_duration, req.step
     )
     
     return {"status": "started", "test_id": test_id}
+
+from fastapi.responses import FileResponse
+
+@router.get("/download/{test_id}")
+def download_test_output(test_id: str):
+    rows = db.tests.get_all()
+    test_record = next((r for r in rows if r["test_id"] == test_id), None)
+    
+    if not test_record:
+        raise HTTPException(status_code=404, detail="Test not found")
+        
+    visual_path = test_record.get("visual_output_path")
+    if not visual_path or not os.path.exists(visual_path):
+        raise HTTPException(status_code=404, detail="Output file not found or not generated")
+        
+    filename = os.path.basename(visual_path)
+    return FileResponse(path=visual_path, filename=filename, media_type='application/octet-stream')

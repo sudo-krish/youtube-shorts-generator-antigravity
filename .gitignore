@@ -60,3 +60,14 @@ backend/outputs/
 backend/tmp/
 backend/.venv/
 .env
+
+# Explicitly ignore downloaded AI models
+backend/assets/models/
+models--*
+
+# Prevent massive media files from breaking Git pushes
+backend/*.mp4
+backend/*.mkv
+backend/*.webm
+backend/*.mov
+backend/*.ts

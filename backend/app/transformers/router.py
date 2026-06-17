@@ -19,13 +19,15 @@ async def run_audio_transformer(req: TransformerRequest):
     transformer = AudioVoxtralTransformer(game_id=req.game_id)
     transformer.load_model()
     try:
-        for t in range(0, int(req.duration), req.step):
+        for t in np.arange(0, req.duration, req.step):
             audio_context = transformer.process(req.video_path, float(t), float(t + req.step))
             matrix.append({"t_float": float(t), "audio_context": audio_context})
     finally:
         transformer.unload_model()
         release_vram_lock("AudioTransformer")
     return TransformerResponse(matrix=matrix)
+
+import numpy as np
 
 @router.post("/vision", response_model=TransformerResponse)
 async def run_vision_transformer(req: TransformerRequest):
@@ -35,8 +37,17 @@ async def run_vision_transformer(req: TransformerRequest):
     transformer = VisionTransformer()
     transformer.load_model()
     try:
-        for t in range(0, int(req.duration), req.step):
-            visual_tags = transformer.process(req.video_path, t, t + req.step)
+        previous_context = []
+        for t in np.arange(0, req.duration, req.step):
+            visual_tags = transformer.process(
+                req.video_path, 
+                float(t), 
+                float(t + req.step), 
+                previous_context=previous_context,
+                game_name=req.game_id or ""
+            )
+            if visual_tags and isinstance(visual_tags, list) and len(visual_tags) > 0:
+                previous_context.append(visual_tags[0])
             matrix.append({"t_float": float(t), "visual_tags": visual_tags})
     finally:
         transformer.unload_model()
@@ -50,8 +61,8 @@ async def run_spatial_transformer(req: TransformerRequest):
     transformer = SpatialTransformer()
     transformer.load_model()
     try:
-        for t in range(0, int(req.duration), req.step):
-            spatial_tags = transformer.process(req.video_path, t, t + req.step)
+        for t in np.arange(0, req.duration, req.step):
+            spatial_tags = transformer.process(req.video_path, float(t), float(t + req.step))
             matrix.append({"t_float": float(t), "spatial_tags": spatial_tags})
     finally:
         transformer.unload_model()
@@ -62,12 +73,12 @@ async def run_yolo_transformer(req: TransformerRequest):
     logger.info(f"API: Running YOLO Transformer on {req.video_path}")
     await acquire_vram_lock("YoloTransformer")
     matrix = []
-    model_p = get_asset_path("yolo11m.pt", "model")
+    model_p = get_asset_path("yoloe-26s-seg.pt", "model")
     tracker = YoloPlayerTracker(model_path=model_p)
     tracker.load_model()
     try:
-        for t in range(0, int(req.duration), req.step):
-            boxes = tracker.process(req.video_path, t, t + req.step)
+        for t in np.arange(0, req.duration, req.step):
+            boxes = tracker.process(req.video_path, float(t), float(t + req.step))
             matrix.append({"t_float": float(t), "boxes": boxes})
     finally:
         tracker.unload_model()
