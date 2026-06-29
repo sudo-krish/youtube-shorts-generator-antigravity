@@ -19,8 +19,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from core.middleware import setup_middlewares
-from api.router import api_router
-from core.db.connection import init_db
+from core.db.engine import init_db
 
 # Directory setup
 OUTPUTS_DIR = os.path.join(os.path.dirname(__file__), "outputs")
@@ -37,8 +36,9 @@ from core.settings import ASSETS_DIR
 # Mount assets directory for frontend
 app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 
-# Include central router
-app.include_router(api_router, prefix="/api")
+# Include Auto-Discovery Nano-Service Registry
+from core.registry import build_api_router
+app.include_router(build_api_router(), prefix="/api")
 
 @app.on_event("startup")
 def startup_event():

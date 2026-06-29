@@ -6,3 +6,5 @@ opencv-python-headless
 ffmpeg-python
 whisperx
 ultralytics
+sqlalchemy
+boto3
