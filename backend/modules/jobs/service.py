@@ -1,11 +1,11 @@
 import json
 import time
 from core.db.manager import db
-from modules.orchestrator.schema import Job, JobStage, JobRender
+from modules.jobs.schema import Job, JobStage, JobRender
 from modules.media.editor.schema import Video
 from sqlalchemy import select, insert, update
 
-class OrchestratorService:
+class JobService:
     @staticmethod
     def create_job(job_id: str, video_id: str, metadata: dict = None):
         db.create(Job, job_id=job_id, video_id=video_id, status="processing", 
@@ -126,4 +126,4 @@ class OrchestratorService:
             except: r["outputs"] = []
         return renders
 
-orchestrator_service = OrchestratorService()
+job_service = JobService()

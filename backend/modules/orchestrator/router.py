@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
+from typing import Optional, List, Dict, Any
 from core.service_registry import get_service
-from modules.orchestrator.service import orchestrator_service
+from modules.jobs.service import job_service
 from modules.orchestrator.manager import AIOrchestratorStateMachine
 from core.file_manager import file_manager
 import logging
@@ -13,11 +14,17 @@ router = APIRouter()
 
 editor_service = get_service("editor")
 
-class AnalyzeRequest(BaseModel):
+class SequenceStep(BaseModel):
+    name: str
+    endpoint: str
+    params: Dict[str, Any] = {}
+
+class RunRequest(BaseModel):
     video_id: str
     metadata: dict = {}
+    sequence: Optional[List[SequenceStep]] = None
 
-def run_orchestrator_job(job_id: str, video_path: str, metadata: dict, resume_state: dict = None):
+def run_orchestrator_job(job_id: str, video_path: str, metadata: dict, sequence: list = None, resume_state: dict = None):
     job_logger = logging.getLogger("ai_director")
     log_path = file_manager.get_absolute_path("logs", f"{job_id}.log")
 
@@ -30,7 +37,9 @@ def run_orchestrator_job(job_id: str, video_path: str, metadata: dict, resume_st
     try:
         job_logger.info(f"Starting orchestrator for job {job_id} on video {video_path}")
         orchestrator = AIOrchestratorStateMachine(video_path=video_path, metadata=metadata)
-        output_json = orchestrator.orchestrate_pipeline(job_id, resume_state=resume_state)
+        
+        seq_dicts = [step.dict() for step in sequence] if sequence else None
+        output_json = orchestrator.orchestrate_pipeline(job_id, resume_state=resume_state, sequence=seq_dicts)
 
         from pathlib import Path
         base_name = Path(video_path).stem
@@ -38,39 +47,23 @@ def run_orchestrator_job(job_id: str, video_path: str, metadata: dict, resume_st
         
         output_path = file_manager.get_absolute_path("base_asset", f"{base_name}_segments.json")
         job_logger.info(f"AI Analysis Complete! Saved categorization to {output_path}")
-        orchestrator_service.update_job_status(job_id, "completed", json_path=output_path)
+        job_service.update_job_status(job_id, "completed", json_path=output_path)
 
     except Exception as e:
         import traceback
         traceback.print_exc()
         job_logger.error(f"Error in background task: {e}")
-        orchestrator_service.update_job_status(job_id, f"failed: {str(e)}")
-        orchestrator_service.fail_running_stages(job_id)
-
-@router.post("/analyze")
-async def start_analysis(request: AnalyzeRequest, background_tasks: BackgroundTasks):
-    logger.info(f"Starting async AI analysis on video {request.video_id} with metadata {request.metadata}...")
-    video_record = editor_service.get_video(request.video_id)
-    if not video_record:
-        raise HTTPException(status_code=404, detail="Video not found")
-    job_id = str(uuid.uuid4())
-    orchestrator_service.create_job(job_id, request.video_id, request.metadata)
-    background_tasks.add_task(
-        run_orchestrator_job,
-        job_id=job_id,
-        video_path=video_record["video_path"],
-        metadata=request.metadata,
-    )
-    return {"status": "success", "job_id": job_id}
+        job_service.update_job_status(job_id, f"failed: {str(e)}")
+        job_service.fail_running_stages(job_id)
 
 @router.post("/redrive/{job_id}")
 async def redrive_job(job_id: str, background_tasks: BackgroundTasks):
-    job = orchestrator_service.get_job(job_id)
+    job = job_service.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    orchestrator_service.fail_running_stages(job_id)
-    completed_stages = orchestrator_service.get_completed_stages(job_id)
+    job_service.fail_running_stages(job_id)
+    completed_stages = job_service.get_completed_stages(job_id)
 
     resume_state = {}
     for stage in completed_stages:
@@ -79,18 +72,34 @@ async def redrive_job(job_id: str, background_tasks: BackgroundTasks):
         if chunk_id is not None:
             if chunk_id not in resume_state:
                 resume_state[chunk_id] = {}
-            try:
-                data = file_manager.read_text("agent_output", f"{job_id}/chunk_{chunk_id}_{stage_name}.json")
-                resume_state[chunk_id][stage_name] = data
-            except Exception:
-                pass
+            # We don't have the full payload in the DB, just the fact it completed.
+            # But the orchestrator reads the file from disk anyway if we pass the state.
+            resume_state[chunk_id][stage_name] = True
 
-    orchestrator_service.update_job_status(job_id, "processing")
+    # Note: redrive currently falls back to default sequence since sequence isn't saved in DB
     background_tasks.add_task(
         run_orchestrator_job,
         job_id=job_id,
         video_path=job["video_path"],
-        metadata=json.loads(job["metadata"]) if job["metadata"] else {},
-        resume_state=resume_state,
+        metadata=job.get("metadata", {}),
+        sequence=None, 
+        resume_state=resume_state
     )
-    return {"status": "success", "message": "Redrive initiated", "job_id": job_id}
+    return {"status": "success", "message": f"Redriving job {job_id}", "job_id": job_id}
+
+@router.post("/run")
+async def start_run(request: RunRequest, background_tasks: BackgroundTasks):
+    logger.info(f"Starting async AI Orchestrator run on video {request.video_id} with sequence: {request.sequence}")
+    video_record = editor_service.get_video(request.video_id)
+    if not video_record:
+        raise HTTPException(status_code=404, detail="Video not found")
+    job_id = str(uuid.uuid4())
+    job_service.create_job(job_id, request.video_id, request.metadata)
+    background_tasks.add_task(
+        run_orchestrator_job,
+        job_id=job_id,
+        video_path=video_record["video_path"],
+        metadata=request.metadata,
+        sequence=request.sequence
+    )
+    return {"status": "success", "job_id": job_id}

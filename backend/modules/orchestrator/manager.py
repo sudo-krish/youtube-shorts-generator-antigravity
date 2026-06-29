@@ -4,15 +4,9 @@ import subprocess
 import logging
 import json
 import httpx
-from modules.orchestrator.service import orchestrator_service
-from core.settings import AGENTS_OUTPUT_DIR
+from modules.jobs.service import job_service
 
 logger = logging.getLogger(__name__)
-
-ASSETS_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "assets"
-)
-os.makedirs(ASSETS_DIR, exist_ok=True)
 
 class AIOrchestratorStateMachine:
     """The multi-agent orchestrator that manages the N-Phase AI Assembly Line via Nano-Services."""
@@ -30,8 +24,25 @@ class AIOrchestratorStateMachine:
         response.raise_for_status()
         return response.json().get("output", {})
 
-    def run_multi_agent_pipeline(
+    def resolve_params(self, params: dict, context: dict) -> dict:
+        """Resolve dynamic parameters like $step_name.key from the context."""
+        resolved = {}
+        for k, v in params.items():
+            if isinstance(v, str) and v.startswith("$"):
+                # e.g., $narrator.action_log
+                parts = v[1:].split(".")
+                if len(parts) == 2:
+                    step_name, key = parts
+                    resolved[k] = context.get(step_name, {}).get(key, "")
+                else:
+                    resolved[k] = context.get(parts[0], "")
+            else:
+                resolved[k] = v
+        return resolved
+
+    def run_dynamic_pipeline(
         self,
+        sequence: list,
         chunk_path: str,
         job_id: str,
         chunk_idx: int,
@@ -39,6 +50,7 @@ class AIOrchestratorStateMachine:
         job_logger: logging.Logger = logger,
     ):
         did_work = False
+        context = {"global": {"video_path": chunk_path, "metadata": self.metadata, "job_id": job_id}}
 
         def get_state(step_name):
             return resume_state.get(chunk_idx, {}).get(step_name)
@@ -47,141 +59,125 @@ class AIOrchestratorStateMachine:
             nonlocal did_work
             did_work = True
             if job_id:
-                orchestrator_service.log_stage(job_id, step_name, "completed", str(data), chunk_id=chunk_idx)
-                agents_dir = os.path.join(
-                    os.path.dirname(ASSETS_DIR),
-                    "outputs",
-                    "agents",
-                    job_id,
-                    str(chunk_idx),
-                )
-                os.makedirs(agents_dir, exist_ok=True)
-                with open(os.path.join(agents_dir, f"{step_name}.txt"), "w") as f:
-                    f.write(data if isinstance(data, str) else json.dumps(data, indent=2))
+                job_service.log_stage(job_id, step_name, "completed", str(data), chunk_id=chunk_idx)
+                
+                # Use file manager to save agent output state
+                if isinstance(data, dict):
+                    file_manager.write_json("agent_output", f"{job_id}/chunk_{chunk_idx}_{step_name}.json", data)
+                else:
+                    file_manager.write_text("agent_output", f"{job_id}/chunk_{chunk_idx}_{step_name}.json", str(data))
 
-        def execute_stage(step_name, running_msg, endpoint, payload):
+        def execute_stage(step_name, endpoint, payload):
             state = get_state(step_name)
             if state:
+                if isinstance(state, str):
+                    try:
+                        state = json.loads(state)
+                    except:
+                        pass
                 return state
                 
             if job_id:
-                orchestrator_service.log_stage(job_id, step_name, "running", running_msg, chunk_id=chunk_idx)
+                job_service.log_stage(job_id, step_name, "running", f"Running {step_name}...", chunk_id=chunk_idx)
 
             result = self._call_nano_service(endpoint, payload)
             save_state(step_name, result)
             return result
 
         try:
-            # Note: Transformers are not fully migrated in Phase 3 yet, so we will stub their matrix generation.
-            # In a full implementation, they would also be HTTP calls.
-            semantic_matrix = [] # Stub for un-migrated transformers
+            last_result = None
+            for step in sequence:
+                step_name = step.get("name")
+                endpoint = step.get("endpoint")
+                raw_params = step.get("params", {})
+                
+                # Resolve any dynamic dependencies using the context
+                payload = self.resolve_params(raw_params, context)
+                # Inject global variables if needed
+                if "metadata" not in payload:
+                    payload["metadata"] = self.metadata
+                if "job_id" not in payload:
+                    payload["job_id"] = job_id
+                
+                result = execute_stage(step_name, endpoint, payload)
+                # Save result to context for future steps to reference
+                context[step_name] = result if isinstance(result, dict) else {"output": result}
+                last_result = result
 
-            narrator_res = execute_stage(
-                "narrator",
-                "Narrator Agent watching video and extracting semantic context...",
-                "/api/ai/agents/narrator",
-                {
-                    "job_id": job_id,
-                    "frame_dir": f"/tmp/jobs/{job_id}/frames",
-                    "metadata": self.metadata,
-                }
-            )
-            context = narrator_res.get("action_log", "") if isinstance(narrator_res, dict) else narrator_res
-
-            scripts_res = execute_stage(
-                "scriptwriter",
-                "Script Writer generating multi-variant templates...",
-                "/api/ai/agents/scriptwriter",
-                {
-                    "observer_context": context,
-                    "metadata": self.metadata,
-                    "web_trends": ""
-                }
-            )
-            scripts = scripts_res.get("scripts", "") if isinstance(scripts_res, dict) else scripts_res
-
-            vision_res = execute_stage(
-                "director",
-                "Director injecting magic and vibes based on scripts...",
-                "/api/ai/agents/director",
-                {
-                    "observer_context": context,
-                    "scripts": scripts,
-                    "metadata": self.metadata,
-                    "sfx_library": "",
-                    "music_library": ""
-                }
-            )
-            vision = vision_res.get("director_rules", "") if isinstance(vision_res, dict) else vision_res
-
-            breakdown_res = execute_stage(
-                "editor",
-                "Editor translating to FFmpeg technical capabilities...",
-                "/api/ai/agents/editor",
-                {
-                    "scripts_context": scripts,
-                    "director_vision": vision,
-                    "metadata": self.metadata
-                }
-            )
-            breakdown = breakdown_res.get("technical_directives", "") if isinstance(breakdown_res, dict) else breakdown_res
-
-            validated_plans_res = execute_stage(
-                "specialist",
-                "YouTube Specialist polishing technical plans for maximum algorithm retention...",
-                "/api/ai/agents/specialist",
-                {
-                    "editor_breakdown": breakdown,
-                    "metadata": self.metadata,
-                    "math_report": "",
-                    "youtube_rules": "",
-                    "capabilities": ""
-                }
-            )
-            validated_plans = validated_plans_res.get("polished_breakdown", "") if isinstance(validated_plans_res, dict) else validated_plans_res
-
-            json_output = execute_stage(
-                "builder",
-                "Builder formatting finalized JSON blueprints...",
-                "/api/ai/agents/builder",
-                {
-                    "validated_breakdown": validated_plans
-                }
-            )
-
-            if isinstance(json_output, list):
-                shorts = json_output
+            # Attempt to extract shorts from the final result
+            if isinstance(last_result, list):
+                shorts = last_result
+            elif isinstance(last_result, dict):
+                shorts = last_result.get("shorts", [])
             else:
-                shorts = json_output.get("shorts", [])
+                shorts = []
                 
             return shorts, did_work
 
         finally:
             pass
 
-    def orchestrate_pipeline(self, job_id: str = None, resume_state: dict = None):
+    def get_default_sequence(self):
+        return [
+            {
+                "name": "narrator", 
+                "endpoint": "/api/ai/agents/narrator", 
+                "params": {"frame_dir": f"/tmp/frames"}
+            },
+            {
+                "name": "scriptwriter", 
+                "endpoint": "/api/ai/agents/scriptwriter", 
+                "params": {"observer_context": "$narrator.action_log", "web_trends": ""}
+            },
+            {
+                "name": "director", 
+                "endpoint": "/api/ai/agents/director", 
+                "params": {"observer_context": "$narrator.action_log", "scripts": "$scriptwriter.scripts", "sfx_library": "", "music_library": ""}
+            },
+            {
+                "name": "editor", 
+                "endpoint": "/api/ai/agents/editor", 
+                "params": {"scripts_context": "$scriptwriter.scripts", "director_vision": "$director.director_rules"}
+            },
+            {
+                "name": "specialist", 
+                "endpoint": "/api/ai/agents/specialist", 
+                "params": {"editor_breakdown": "$editor.technical_directives", "math_report": "", "youtube_rules": "", "capabilities": ""}
+            },
+            {
+                "name": "builder", 
+                "endpoint": "/api/ai/agents/builder", 
+                "params": {"validated_breakdown": "$specialist.polished_breakdown"}
+            }
+        ]
+
+    def orchestrate_pipeline(self, job_id: str = None, resume_state: dict = None, sequence: list = None):
         job_logger = logging.getLogger("ai_director")
 
         if resume_state is None:
             resume_state = {}
+            
+        if not sequence:
+            sequence = self.get_default_sequence()
+            
         try:
             chunk_duration = 900
             overlap = 120
             
-            # Skipping chunking for brevity in State Machine demo.
             chunks = [self.video_path]
             all_shorts = []
             start_offset = 0
 
             for idx, chunk in enumerate(chunks):
-                shorts, did_work = self.run_multi_agent_pipeline(chunk, job_id, idx, resume_state, job_logger)
+                shorts, did_work = self.run_dynamic_pipeline(sequence, chunk, job_id, idx, resume_state, job_logger)
 
                 for short in shorts:
-                    for phase in short.get("phases", []):
-                        if "start_time" in phase:
-                            phase["start_time"] += start_offset
-                        if "end_time" in phase:
-                            phase["end_time"] += start_offset
+                    if isinstance(short, dict):
+                        for phase in short.get("phases", []):
+                            if "start_time" in phase:
+                                phase["start_time"] += start_offset
+                            if "end_time" in phase:
+                                phase["end_time"] += start_offset
 
                 all_shorts.extend(shorts)
                 start_offset += chunk_duration - overlap
