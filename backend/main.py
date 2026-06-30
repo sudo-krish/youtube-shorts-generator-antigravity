@@ -40,6 +40,10 @@ app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 from core.registry import build_api_router
 app.include_router(build_api_router(), prefix="/api")
 
+# Mount Upload Router explicitly since it relies on FormData (NanoService registry uses JSON payloads)
+from modules.upload.router import router as upload_router
+app.include_router(upload_router, prefix="/api")
+
 @app.on_event("startup")
 def startup_event():
     """Initializes the database on application startup."""

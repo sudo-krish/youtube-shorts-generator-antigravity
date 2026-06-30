@@ -3,7 +3,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localho
 export const api = {
   // Videos
   getVideos: async () => {
-    const res = await fetch(`${API_BASE_URL}/api/videos`);
+    const res = await fetch(`${API_BASE_URL}/api/media/editor/projects`);
     return res.json();
   },
   
@@ -18,9 +18,15 @@ export const api = {
     return res.json();
   },
 
+  getUploadedVideos: async () => {
+    const res = await fetch(`${API_BASE_URL}/api/videos`);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
   // Analysis & Jobs
   analyzeVideo: async (videoId: string, metadata: any) => {
-    const res = await fetch(`${API_BASE_URL}/api/analyze`, {
+    const res = await fetch(`${API_BASE_URL}/api/orchestrator/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ video_id: videoId, metadata })
@@ -63,32 +69,10 @@ export const api = {
     return res.json();
   },
 
-  // Testing
-  getTestHistory: async () => {
-    const res = await fetch(`${API_BASE_URL}/api/test/transformers`);
-    if (!res.ok) throw new Error(await res.text());
-    return res.json();
-  },
-
-  runTransformerTest: async (videoId: string, chunkIndex: number, transformerName: string, chunkDuration: number = 15.0, gameId: string = 'valorant', stepInterval: number = 1) => {
-    const res = await fetch(`${API_BASE_URL}/api/test/transformers/run`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        video_id: videoId,
-        chunk_index: chunkIndex,
-        transformer_name: transformerName,
-        game_id: gameId,
-        chunk_duration: chunkDuration,
-        step: stepInterval
-      })
-    });
-    if (!res.ok) throw new Error(await res.text());
-    return res.json();
-  },
+  // Testing (Moved to Generic API in testing canvas)
 
   getRenderStatus: async (jobId: string) => {
-    const res = await fetch(`${API_BASE_URL}/api/jobs/${jobId}/render/status`);
+    const res = await fetch(`${API_BASE_URL}/api/renders/${jobId}`);
     if (!res.ok) throw new Error(await res.text());
     return res.json();
   },

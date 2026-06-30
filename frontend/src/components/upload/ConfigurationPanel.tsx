@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Gamepad2, Globe, ArrowRight, Video, CheckCircle2, Loader2, Info } from 'lucide-react';
 import { ModelSettings } from '../ModelSettings';
-import { api, API_BASE_URL } from '../../api';
+import { api } from '../../api';
 
 interface ConfigurationPanelProps {
   videoId: string;
@@ -11,23 +11,17 @@ interface ConfigurationPanelProps {
 }
 
 export const ConfigurationPanel = ({ videoId, videoName, onAnalyzeStarted, onCancel }: ConfigurationPanelProps) => {
-  const [selectedGameId, setSelectedGameId] = useState<string>('');
-  const [games, setGames] = useState<any[]>([]);
+  const [games] = useState<any[]>([
+    { id: 'valorant', game_name: 'Valorant', game_genre: 'Tactical Shooter' },
+    { id: 'cs2', game_name: 'Counter-Strike 2', game_genre: 'Tactical Shooter' },
+    { id: 'apex', game_name: 'Apex Legends', game_genre: 'Battle Royale' },
+    { id: 'minecraft', game_name: 'Minecraft', game_genre: 'Sandbox' },
+    { id: 'fortnite', game_name: 'Fortnite', game_genre: 'Battle Royale' }
+  ]);
+  const [selectedGameId, setSelectedGameId] = useState<string>('valorant');
   const [playerSkill, setPlayerSkill] = useState('High/Pro Level');
   const [region, setRegion] = useState('North America');
   const [isInitializing, setIsInitializing] = useState(false);
-
-  useEffect(() => {
-    fetch(`${API_BASE_URL}/api/games`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.status === 'success' && data.games && data.games.length > 0) {
-          setGames(data.games);
-          setSelectedGameId(data.games[0].id.toString());
-        }
-      })
-      .catch(err => console.error("Failed to load games", err));
-  }, []);
 
   const handleStart = async () => {
     setIsInitializing(true);

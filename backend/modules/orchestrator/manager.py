@@ -120,9 +120,14 @@ class AIOrchestratorStateMachine:
     def get_default_sequence(self):
         return [
             {
+                "name": "yolo",
+                "endpoint": "/api/ai/transformers/yolo",
+                "params": {"video_path": "$global.video_path", "duration": 900, "step": 1.0}
+            },
+            {
                 "name": "narrator", 
                 "endpoint": "/api/ai/agents/narrator", 
-                "params": {"frame_dir": f"/tmp/frames"}
+                "params": {"frame_dir": "/tmp/frames"}
             },
             {
                 "name": "scriptwriter", 

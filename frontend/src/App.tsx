@@ -7,7 +7,7 @@ import { RenderView } from './components/execution/RenderView';
 import { DatabaseViewer } from './components/DatabaseViewer';
 import { Dashboard } from './components/Dashboard';
 import { GameContextManager } from './components/GameContextManager';
-import { TransformerTesting } from './components/testing/TransformerTesting';
+import { PipelineCanvas } from './components/testing/PipelineCanvas';
 
 export const App = () => {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
@@ -31,22 +31,19 @@ export const App = () => {
   };
 
   const handleAnalyzeStarted = (jobId: string) => {
-    // When analysis starts, we transition to the ExecutionView
-    // The ExecutionView depends on selectedJobId
     setSelectedJobId(jobId);
   };
 
   return (
-    <div className="min-h-screen bg-premium-dark text-white font-sans flex selection:bg-white/20 relative overflow-hidden">
-      {/* Aurora Background Effects */}
-      <div className="aurora-bg">
-        <div className="absolute rounded-full mix-blend-screen filter blur-[120px] opacity-30 animate-blob bg-aurora-cyan top-[-10%] left-[-10%] w-[500px] h-[500px]"></div>
-        <div className="absolute rounded-full mix-blend-screen filter blur-[120px] opacity-30 animate-blob bg-aurora-magenta bottom-[-20%] right-[-10%] w-[600px] h-[600px]" style={{ animationDelay: '2s' }}></div>
-        <div className="absolute rounded-full mix-blend-screen filter blur-[120px] opacity-30 animate-blob bg-aurora-violet top-[20%] left-[40%] w-[400px] h-[400px]" style={{ animationDelay: '4s' }}></div>
+    <div className="min-h-screen bg-[#09090b] text-zinc-100 font-sans flex selection:bg-white/10 relative overflow-hidden">
+      {/* Minimal ambient light effect instead of saturated aurora */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-3/4 h-[500px] bg-emerald-500/5 blur-[150px] rounded-full mix-blend-screen transform -translate-y-1/2"></div>
+        <div className="absolute bottom-0 right-1/4 w-3/4 h-[500px] bg-indigo-500/5 blur-[150px] rounded-full mix-blend-screen transform translate-y-1/2"></div>
       </div>
       
       {/* Subtle Grain Overlay */}
-      <div className="fixed inset-0 opacity-[0.015] pointer-events-none mix-blend-overlay z-0" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E")' }}></div>
+      <div className="fixed inset-0 opacity-[0.02] pointer-events-none mix-blend-overlay z-0" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.85%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E")' }}></div>
 
       <Sidebar 
         selectedJobId={selectedJobId} 
@@ -70,21 +67,24 @@ export const App = () => {
       />
 
       {/* MAIN CANVAS */}
-      <main className="flex-1 h-screen overflow-y-auto relative z-10 p-10 flex flex-col custom-scrollbar">
+      <main className="flex-1 h-screen overflow-y-auto relative z-10 p-6 sm:p-10 flex flex-col custom-scrollbar">
         {!selectedJobId ? (
-          // NEW GENERATION FLOW
-          <div className="flex-1 flex flex-col justify-center max-w-6xl mx-auto w-full">
+          <div className="flex-1 flex flex-col justify-center max-w-7xl mx-auto w-full h-full">
             {wizardState === 'UPLOAD' && (
-              <UploadDropzone onUploadComplete={handleUploadComplete} />
+              <div className="max-w-4xl mx-auto w-full">
+                <UploadDropzone onUploadComplete={handleUploadComplete} />
+              </div>
             )}
             
             {wizardState === 'CONFIG' && currentVideoId && currentVideoName && (
-              <ConfigurationPanel 
-                videoId={currentVideoId} 
-                videoName={currentVideoName} 
-                onAnalyzeStarted={handleAnalyzeStarted}
-                onCancel={() => setWizardState('UPLOAD')}
-              />
+              <div className="max-w-4xl mx-auto w-full">
+                <ConfigurationPanel 
+                  videoId={currentVideoId} 
+                  videoName={currentVideoName} 
+                  onAnalyzeStarted={handleAnalyzeStarted}
+                  onCancel={() => setWizardState('UPLOAD')}
+                />
+              </div>
             )}
             
             {wizardState === 'DB_VIEWER' && (
@@ -103,16 +103,22 @@ export const App = () => {
             )}
 
             {wizardState === 'TESTING_UI' && (
-              <TransformerTesting />
+              <div className="flex flex-col h-full space-y-4">
+                <div>
+                  <h1 className="text-2xl font-bold tracking-tight text-zinc-100">Testing Canvas</h1>
+                  <p className="text-sm text-zinc-400 mt-1">Visually build and test the API pipeline steps.</p>
+                </div>
+                <div className="flex-1 min-h-[600px]">
+                  <PipelineCanvas />
+                </div>
+              </div>
             )}
           </div>
         ) : wizardState === 'RENDER_VIEW' ? (
-          // BATCH RENDER FLOW
           <div className="flex-1 max-w-7xl mx-auto w-full">
             <RenderView jobId={selectedJobId} />
           </div>
         ) : (
-          // EXECUTION FLOW
           <div className="flex-1 max-w-7xl mx-auto w-full">
             <ExecutionView jobId={selectedJobId} onNext={() => setWizardState('RENDER_VIEW')} />
           </div>

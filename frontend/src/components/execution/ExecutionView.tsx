@@ -13,7 +13,7 @@ interface ExecutionViewProps {
 export const ExecutionView = ({ jobId, onNext }: ExecutionViewProps) => {
   const [status, setStatus] = useState<string>('processing');
   const [progressText, setProgressText] = useState('Initializing...');
-  const [agentStates, setAgentStates] = useState<Record<string, any>>({});
+  const [agentStates, setAgentStates] = useState<any[]>([]);
   const [jsonPath, setJsonPath] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [nodeOutput, setNodeOutput] = useState<any>(null);
@@ -23,15 +23,15 @@ export const ExecutionView = ({ jobId, onNext }: ExecutionViewProps) => {
     // Reset state on new jobId
     setStatus('processing');
     setProgressText('Connecting to engine...');
-    setAgentStates({});
+    setAgentStates([]);
     setJsonPath(null);
 
     const pollInterval = setInterval(async () => {
       try {
         const data = await api.getJobStatus(jobId);
         
-        if (data.agent_states) {
-          setAgentStates(data.agent_states);
+        if (data.stages) {
+          setAgentStates(data.stages);
         }
         
         if (data.status === 'completed') {

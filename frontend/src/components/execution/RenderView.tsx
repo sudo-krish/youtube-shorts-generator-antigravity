@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Play, Layers, Download, CheckCircle2, CircleDashed, FastForward, Activity } from 'lucide-react';
-import { api } from '../../api';
+import { api, API_BASE_URL } from '../../api';
 import { VideoPlayer } from '../VideoPlayer';
 import { TokenTracker } from '../TokenTracker';
 import { AdvancedToggles } from '../AdvancedToggles';
@@ -19,11 +19,11 @@ export const RenderView = ({ jobId }: RenderViewProps) => {
   useEffect(() => {
     const fetchVariants = async () => {
       try {
-        const jobRes = await fetch(`http://localhost:8000/api/jobs/${jobId}/status`);
-        const jobData = await jobRes.json();
+        const jobData = await api.getJobStatus(jobId);
         
         if (jobData.json_path) {
-          const blueprintRes = await fetch(`http://localhost:8000/${jobData.json_path.split('backend/')[1] || 'assets/' + jobData.json_path.split('/').pop()}`);
+          const blueprintPath = jobData.json_path.split('backend/')[1] || 'assets/' + jobData.json_path.split('/').pop();
+          const blueprintRes = await fetch(`${API_BASE_URL}/${blueprintPath}`);
           if (blueprintRes.ok) {
             const blueprint = await blueprintRes.json();
             setVariants(blueprint.shorts || []);
@@ -180,7 +180,7 @@ export const RenderView = ({ jobId }: RenderViewProps) => {
                                   <button className="p-1.5 bg-indigo-500/20 text-indigo-400 rounded hover:bg-indigo-500/40 transition-colors" title="Preview">
                                     <Play className="w-3.5 h-3.5" />
                                   </button>
-                                  <a href={`http://localhost:8000/api/download/${filename.replace('viral_short_', '').replace('.mp4', '')}`} download className="p-1.5 bg-white/10 text-white/70 rounded hover:bg-white/20 hover:text-white transition-colors" title="Download">
+                                  <a href={`${API_BASE_URL}/api/download/${filename.replace('viral_short_', '').replace('.mp4', '')}`} download className="p-1.5 bg-white/10 text-white/70 rounded hover:bg-white/20 hover:text-white transition-colors" title="Download">
                                     <Download className="w-3.5 h-3.5" />
                                   </a>
                                 </div>
