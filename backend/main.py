@@ -35,6 +35,7 @@ from core.settings import ASSETS_DIR
 
 # Mount assets directory for frontend
 app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
+app.mount("/outputs", StaticFiles(directory=OUTPUTS_DIR), name="outputs")
 
 # Include Auto-Discovery Nano-Service Registry
 from core.registry import build_api_router

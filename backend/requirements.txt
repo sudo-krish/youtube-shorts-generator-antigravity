@@ -8,3 +8,4 @@ whisperx
 ultralytics
 sqlalchemy
 boto3
+google-generativeai
