@@ -23,6 +23,7 @@ def get_all_agents():
     from .roles.director import DirectorAgent
     from .roles.specialist import SpecialistAgent
     from .roles.narrator import NarrativeInferenceNode
+    from .roles.ideation import IdeationAgent
 
     return {
         "scriptwriter": ScriptWriterAgent(),
@@ -31,4 +32,5 @@ def get_all_agents():
         "director": DirectorAgent(),
         "specialist": SpecialistAgent(),
         "narrator": NarrativeInferenceNode(),
+        "ideation": IdeationAgent(),
     }
